@@ -332,16 +332,14 @@ __global__ void kernel_grid(
 				}
 			}
 
-			result = fma((T)weight, tanh(grid_val(pos_grid_local)), result);
+			auto val = grid_val(pos_grid_local);
 
-			// auto val = grid_val(pos_grid_local);
-
-			// TCNN_PRAGMA_UNROLL
-			// for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-			// 	float data = (float)((T*)&val)[feature];
-			// 	if (fabsf(data) < quantize_threshold) data = 0.f;
-			// 	((T*)&result)[feature] += (T)(weight * data);
-			// }
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+				float data = (float)((T*)&val)[feature];
+				if (fabsf(data) < quantize_threshold) data = 0.f;
+				((T*)&result)[feature] += (T)(weight * data);
+			}
 		}
 
 		TCNN_PRAGMA_UNROLL
