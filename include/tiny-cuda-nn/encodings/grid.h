@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -224,6 +224,7 @@ __global__ void kernel_grid(
 	const GridOffsetTable offset_table,
 	const uint32_t base_resolution,
 	const float log2_per_level_scale,
+	const float quantize_threshold,
 	float max_level,
 	const float* __restrict__ max_level_gpu,
 	const InterpolationType interpolation_type,
@@ -256,7 +257,7 @@ __global__ void kernel_grid(
 		if (dy_dx) {
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-				((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = {0.0f};
+				((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = {0};
 			}
 		}
 
@@ -304,7 +305,7 @@ __global__ void kernel_grid(
 		if (dy_dx) {
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-				((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = {0.0f};
+				((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = {0};
 			}
 		}
 
@@ -330,11 +331,19 @@ __global__ void kernel_grid(
 					pos_grid_local[dim] = pos_grid[dim] + 1;
 				}
 			}
-			auto grid_val_temp = grid_val(pos_grid_local)
-			for (int i = 0; i < N_FEATURES_PER_LEVEL; i++) {
-        		grid_val_temp[i] = (grid_val_temp[i] >= 0) ? 1.0f : -1.0f;
-    		}
-			result = fma((T)weight, grid_val_temp, result);
+
+			auto val = grid_val(pos_grid_local);
+            // for (int i = 0; i < N_FEATURES_PER_LEVEL; i++) {
+            //     val[i] = (val[i] >= 0) ? 1.0f : -1.0f;
+			// }
+
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+				float data = (float)((T*)&val)[feature];
+				if (fabsf(data) >= 0.f) data = +1.0f;
+				else data = -1.0f;
+				((T*)&result)[feature] += (T)(weight * data);
+			}
 		}
 
 		TCNN_PRAGMA_UNROLL
@@ -345,7 +354,7 @@ __global__ void kernel_grid(
 
 	// Gradient
 	if (dy_dx) {
-		vecf<N_POS_DIMS> grads[N_FEATURES_PER_LEVEL] = {0.0f};
+		vector_fullp_t<N_POS_DIMS> grads[N_FEATURES_PER_LEVEL] = {};
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t grad_dim = 0; grad_dim < N_POS_DIMS; ++grad_dim) {
@@ -381,7 +390,7 @@ __global__ void kernel_grid(
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-			((vecf<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = grads[f];
+			((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = grads[f];
 		}
 	}
 }
@@ -552,11 +561,11 @@ __global__ void kernel_grid_backward_input(
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= num_elements) return;
 
-	vecf<N_POS_DIMS> result = {0.0f};
+	vector_fullp_t<N_POS_DIMS> result = {0};
 
 	for (int k = 0; k < num_grid_features; ++k) {
 		float dL_dy_local = (float)dL_dy_rm[i + k * num_elements];
-		auto dy_dx_local = ((vecf<N_POS_DIMS>*)dy_dx)[i + k * num_elements];
+		auto dy_dx_local = ((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + k * num_elements];
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
@@ -700,6 +709,7 @@ __global__ void kernel_grid_backward_input_backward_input(
 	const GridOffsetTable offset_table,
 	const uint32_t base_resolution,
 	const float log2_per_level_scale,
+	const float quantize_threshold,
 	float max_level,
 	const float* __restrict__ max_level_gpu,
 	const InterpolationType interpolation_type,
@@ -897,8 +907,6 @@ public:
 	virtual size_t level_n_params(uint32_t level) const = 0;
 	virtual size_t level_params_offset(uint32_t level) const = 0;
 
-	virtual const GridOffsetTable& grid_offset_table() const = 0;
-
 	float max_level() const {
 		return m_max_level;
 	}
@@ -915,6 +923,14 @@ public:
 		m_max_level_gpu = value;
 	}
 
+	float quantize_threshold() const {
+		return m_quantize_threshold;
+	}
+
+	void set_quantize_threshold(float value) {
+		m_quantize_threshold = value;
+	}
+
 protected:
 	// Disables lookups of finer levels than this.
 	// The default value of 1000 effectively disables the feature
@@ -922,6 +938,9 @@ protected:
 
 	// If this pointer is non-null, it is expected to point to per-element m_max_level
 	float* m_max_level_gpu = nullptr;
+
+	// Features with values less then this threshold are quantized to zero
+	float m_quantize_threshold = 0.f;
 };
 
 template <typename T, uint32_t N_POS_DIMS=3, uint32_t N_FEATURES_PER_LEVEL=2, HashType HASH_TYPE=HashType::CoherentPrime>
@@ -972,7 +991,7 @@ public:
 			uint32_t params_in_level = std::pow((float)resolution, N_POS_DIMS) > (float)max_params ? max_params : powi(resolution, N_POS_DIMS);
 
 			// Make sure memory accesses will be aligned
-			// params_in_level = next_multiple(params_in_level, 8u);
+			// params_in_level = next_multiple(params_in_level, 1u << N_POS_DIMS);
 
 			if (grid_type == GridType::Dense) {
 				// No-op
@@ -1029,8 +1048,8 @@ public:
 					out(elem)[n_output_dims + dim] = 0;
 				});
 			} else {
-				parallel_for_gpu(synced_streams.get(1), num_elements * m_n_to_pad, [out=output->data() + num_elements * m_n_output_dims] __device__ (size_t i) {
-					out[i] = 0;
+				parallel_for_gpu_aos(synced_streams.get(1), num_elements, m_n_to_pad, [num_elements, n_output_dims=m_n_output_dims, out_soa=output->data()] __device__ (size_t elem, size_t dim) {
+					out_soa[elem + (n_output_dims + dim) * num_elements] = 0;
 				});
 			}
 		}
@@ -1045,12 +1064,12 @@ public:
 		T* encoded_positions_soa = output ? output->data() : nullptr;
 		GPUMemoryArena::Allocation workspace;
 		if (output && output->layout() == AoS) {
-			workspace = allocate_workspace(synced_streams.get(0), num_elements * m_n_features * sizeof(T));
+			workspace = allocate_workspace(stream, num_elements * m_n_features * sizeof(T));
 			encoded_positions_soa = (T*)workspace.data();
 		}
 
 		if (prepare_input_gradients) {
-			forward->dy_dx = GPUMatrix<float, RM>{N_POS_DIMS * m_n_features, input.n(), synced_streams.get(0)};
+			forward->dy_dx = GPUMatrix<float, RM>{N_POS_DIMS * m_n_features, input.n(), stream};
 		}
 
 		kernel_grid<T, N_POS_DIMS, N_FEATURES_PER_LEVEL, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, synced_streams.get(0)>>>(
@@ -1059,6 +1078,7 @@ public:
 			m_offset_table,
 			m_base_resolution,
 			std::log2(m_per_level_scale),
+			this->m_quantize_threshold,
 			this->m_max_level,
 			this->m_max_level_gpu,
 			m_interpolation_type,
@@ -1287,6 +1307,7 @@ public:
 				m_offset_table,
 				m_base_resolution,
 				std::log2(m_per_level_scale),
+				this->m_quantize_threshold,
 				this->m_max_level,
 				this->m_max_level_gpu,
 				m_interpolation_type,
@@ -1352,10 +1373,6 @@ public:
 		}
 
 		return m_offset_table.data[level];
-	}
-
-	const GridOffsetTable& grid_offset_table() const override {
-		return m_offset_table;
 	}
 
 	std::vector<std::pair<uint32_t, uint32_t>> layer_sizes() const override {
@@ -1451,7 +1468,7 @@ GridEncoding<T>* create_grid_encoding_templated_2(uint32_t n_dims_to_encode, con
 		// case 5: return new GridEncodingTemplated<T, 5, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
 		// case 6: return new GridEncodingTemplated<T, 6, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
 		// case 7: return new GridEncodingTemplated<T, 7, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		default: throw std::runtime_error{"GridEncoding: number of input dims must be 2 or 3."};
+		default: throw std::runtime_error{"GridEncoding: number of input dims must be 1, 2, 3 or 4."};
 	}
 #undef TCNN_GRID_PARAMS
 }
