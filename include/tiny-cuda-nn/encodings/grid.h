@@ -330,8 +330,11 @@ __global__ void kernel_grid(
 					pos_grid_local[dim] = pos_grid[dim] + 1;
 				}
 			}
-
-			result = fma((T)weight, (grid_val(pos_grid_local) >= 0) ? 1.0f : -1.0f, result);
+			auto grid_val_temp = grid_val(pos_grid_local)
+			for (int i = 0; i < N_FEATURES_PER_LEVEL; i++) {
+        		grid_val_temp[i] = (grid_val_temp[i] >= 0) ? 1 : -1;
+    }
+			result = fma((T)weight, grid_val_temp, result);
 		}
 
 		TCNN_PRAGMA_UNROLL
