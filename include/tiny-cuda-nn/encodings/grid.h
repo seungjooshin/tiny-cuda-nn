@@ -331,7 +331,7 @@ __global__ void kernel_grid(
 				}
 			}
 
-			result = fma((T)weight, std::tanh(grid_val(pos_grid_local)), result);
+			result = fma((T)weight, (grid_val(pos_grid_local) >= 0) ? 1.0f : -1.0f, result);
 		}
 
 		TCNN_PRAGMA_UNROLL
@@ -365,9 +365,9 @@ __global__ void kernel_grid(
 				}
 
 				pos_grid_local[grad_dim] = pos_grid[grad_dim];
-				auto val_left = 1.0f - std::pow(std::tanh(grid_val(pos_grid_local)), 2);
+				auto val_left = grid_val(pos_grid_local);
 				pos_grid_local[grad_dim] = pos_grid[grad_dim] + 1;
-				auto val_right = 1.0f - std::pow(std::tanh(grid_val(pos_grid_local)), 2);
+				auto val_right = grid_val(pos_grid_local);
 
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
