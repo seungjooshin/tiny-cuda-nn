@@ -334,13 +334,13 @@ __global__ void kernel_grid(
 
 			auto val = grid_val(pos_grid_local);
             // for (int i = 0; i < N_FEATURES_PER_LEVEL; i++) {
-            //     val[i] = (val[i] >= 0) ? 1.0f : -1.0f;
+            //     val[i] = (val[i] >= 0.f) ? 1.0f : -1.0f;
 			// }
 
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 				float data = (float)((T*)&val)[feature];
-				if (fabsf(data) >= 0.f) data = +1.0f;
+				if (data >= 0.f) data = 1.0f;
 				else data = -1.0f;
 				((T*)&result)[feature] += (T)(weight * data);
 			}
