@@ -375,14 +375,16 @@ __global__ void kernel_grid(
 
 				pos_grid_local[grad_dim] = pos_grid[grad_dim];
 				auto val_left = grid_val(pos_grid_local);
-				// hard tanh
-				val_left = (val_left > 1.0f) ? 1.0f : val_left;
-				val_left = (val_left < -1.0f) ? -1.0f : val_left;
 				pos_grid_local[grad_dim] = pos_grid[grad_dim] + 1;
 				auto val_right = grid_val(pos_grid_local);
 				// hard tanh
-				val_right = (val_right > 1.0f) ? 1.0f : val_right;
-				val_right = (val_right < -1.0f) ? -1.0f : val_right;
+				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+					float data_left = (float)((T*)&val_left)[feature];
+					data_left = (data_left > 1.0f) ? 1.0f : data_left;
+					data_left = (data_left < -1.0f) ? -1.0f : data_left;
+					float data_right = (float)((T*)&val_right)[feature];
+					data_right = (data_right > 1.0f) ? 1.0f : data_right;
+					data_right = (data_right < -1.0f) ? -1.0f : data_right;
 
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
