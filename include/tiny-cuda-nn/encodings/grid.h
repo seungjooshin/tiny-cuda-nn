@@ -377,18 +377,17 @@ __global__ void kernel_grid(
 				auto val_left = grid_val(pos_grid_local);
 				pos_grid_local[grad_dim] = pos_grid[grad_dim] + 1;
 				auto val_right = grid_val(pos_grid_local);
-				// hard tanh
-				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-					float data_left = (float)((T*)&val_left)[feature];
-					data_left = (data_left > 1.0f) ? 1.0f : data_left;
-					data_left = (data_left < -1.0f) ? -1.0f : data_left;
-					float data_right = (float)((T*)&val_right)[feature];
-					data_right = (data_right > 1.0f) ? 1.0f : data_right;
-					data_right = (data_right < -1.0f) ? -1.0f : data_right;
 
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-					grads[feature][grad_dim] += weight * ((float)val_right[feature] - (float)val_left[feature]) * pos_derivative[grad_dim];
+					float data_left = (float)val_left[feature]);
+					data_left = (data_left > 1.0f) ? 1.0f : data_left;
+					data_left = (data_left < -1.0f) ? -1.0f : data_left;
+					float data_right = (float)val_right[feature];
+					data_right = (data_right > 1.0f) ? 1.0f : data_right;
+					data_right = (data_right < -1.0f) ? -1.0f : data_right;
+					grads[feature][grad_dim] += weight * (data_right - data_left) * pos_derivative[grad_dim];
+					// grads[feature][grad_dim] += weight * ((float)val_right[feature] - (float)val_left[feature]) * pos_derivative[grad_dim];
 				}
 			}
 		}
