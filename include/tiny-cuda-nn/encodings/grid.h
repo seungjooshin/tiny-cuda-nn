@@ -380,7 +380,7 @@ __global__ void kernel_grid(
 
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-					float data_left = (float)val_left[feature]);
+					float data_left = (float)val_left[feature];
 					data_left = (data_left > 1.0f) ? 1.0f : data_left;
 					data_left = (data_left < -1.0f) ? -1.0f : data_left;
 					float data_right = (float)val_right[feature];
