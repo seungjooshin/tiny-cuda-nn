@@ -380,21 +380,19 @@ __global__ void kernel_grid(
 
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-					float data_left = (float)val_left[feature];
-					data_left = (data_left > 1.0f) ? 1.0f : data_left;
-					data_left = (data_left < -1.0f) ? -1.0f : data_left;
-					float data_right = (float)val_right[feature];
-					data_right = (data_right > 1.0f) ? 1.0f : data_right;
-					data_right = (data_right < -1.0f) ? -1.0f : data_right;
-					grads[feature][grad_dim] += weight * (data_right - data_left) * pos_derivative[grad_dim];
-					// grads[feature][grad_dim] += weight * ((float)val_right[feature] - (float)val_left[feature]) * pos_derivative[grad_dim];
+					grads[feature][grad_dim] += weight * ((float)val_right[feature] - (float)val_left[feature]) * pos_derivative[grad_dim];
 				}
 			}
 		}
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-			((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = grads[f];
+			if (fabsf(grads[f]) <= 1) {
+				((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = grads[f];
+			}
+			else {
+				((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = 0.0f;
+			}
 		}
 	}
 }
