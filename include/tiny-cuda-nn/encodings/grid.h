@@ -334,17 +334,10 @@ __global__ void kernel_grid(
 
 			auto val = grid_val(pos_grid_local);
 
-			float val_sum = 0.0f;
-			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-				val_sum += fabsf((float)((T*)&val)[feature]);
-			}
-			val_sum /= N_FEATURES_PER_LEVEL
-
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 				float data = (float)((T*)&val)[feature];
-				data = (data >= 0.f) ? 1.0f : -1.0f;
-				data *= val_sum
+				data = (tanh(data) >= 0.f) ? 1.0f : -1.0f;
 				if (fabsf(data) < quantize_threshold) data = 0.f;
 				((T*)&result)[feature] += (T)(weight * data);
 			}
@@ -387,7 +380,7 @@ __global__ void kernel_grid(
 
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-					grads[feature][grad_dim] += weight * ((float)val_right[feature] - (float)val_left[feature]) * pos_derivative[grad_dim];
+					grads[feature][grad_dim] += weight * (tanh((float)val_right[feature]) - tanh((float)val_left[feature])) * pos_derivative[grad_dim];
 				}
 			}
 		}
