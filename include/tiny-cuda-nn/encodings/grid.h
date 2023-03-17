@@ -383,6 +383,9 @@ __global__ void kernel_grid(
 					if (fabsf((float)((T*)&val_left)[feature] <= 1.0f)) {
 						grads[feature][grad_dim] += weight * ((float)val_right[feature] - (float)val_left[feature]) * pos_derivative[grad_dim];
 					}
+					else {
+						grads[feature][grad_dim] += weight * 0.0f * pos_derivative[grad_dim];
+					}
 				}
 			}
 		}
