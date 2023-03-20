@@ -297,8 +297,7 @@ __global__ void kernel_grid(
 		if (encoded_positions) {
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-				result[f] = (result[f] >= 0.f) ? 1.0f : -1.0f;
-				encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
+				encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = (result[f] >= 0.f) ? 1.0f : -1.0f;
 			}
 		}
 
