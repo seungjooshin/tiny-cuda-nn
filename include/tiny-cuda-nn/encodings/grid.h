@@ -299,7 +299,7 @@ __global__ void kernel_grid(
 			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
 				float data = (float)((T*)&result)[f];
 				data = (data >= 0.f) ? 1.0f : -1.0f;
-				((T*)&result)[f] += (T)(data);
+				((T*)&result)[f] = (T)(data);
 				encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
 			}
 		}
