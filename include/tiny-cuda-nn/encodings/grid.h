@@ -297,9 +297,6 @@ __global__ void kernel_grid(
 		if (encoded_positions) {
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-				float data = (float)((T*)&result)[f];
-				data = (data >= 0.f) ? 1.0f : -1.0f;
-				((T*)&result)[f] = (T)(data);
 				encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
 			}
 		}
@@ -387,6 +384,7 @@ __global__ void kernel_grid(
 						grads[feature][grad_dim] += weight * ((float)val_right[feature] - (float)val_left[feature]) * pos_derivative[grad_dim];
 					}
 					else {
+						std::cout << "None" << endl;
 						grads[feature][grad_dim] += weight * 0.0f * pos_derivative[grad_dim];
 					}
 				}
