@@ -384,7 +384,6 @@ __global__ void kernel_grid(
 						grads[feature][grad_dim] += weight * ((float)val_right[feature] - (float)val_left[feature]) * pos_derivative[grad_dim];
 					}
 					else {
-						std::cout << "None" << endl;
 						grads[feature][grad_dim] = 0.0f;
 					}
 				}
