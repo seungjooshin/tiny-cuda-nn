@@ -386,6 +386,13 @@ __global__ void kernel_grid(
 		}
 
 		TCNN_PRAGMA_UNROLL
+		for (uint32_t grad_dim = 0; grad_dim < N_POS_DIMS; ++grad_dim) {
+			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+				grads[feature][grad_dim] = fabsf((float)grads[feature][grad_dim]) > 1.0f ? 1.0f : (float)grads[feature][grad_dim];
+			}
+		}
+
+		TCNN_PRAGMA_UNROLL
 		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
 			((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = grads[f];
 		}
