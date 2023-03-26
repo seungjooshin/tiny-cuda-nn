@@ -382,12 +382,12 @@ __global__ void kernel_grid(
 
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-					float data = (float)val_left[feature];
-					val_left[feature] = (data > 1.f) ? 1.0f : data;
-					val_left[feature] = (data < -1.f) ? -1.0f : data;
-					float data = (float)val_right[feature];
-					val_right[feature] = (data > 1.f) ? 1.0f : data;
-					val_right[feature] = (data < -1.f) ? -1.0f : data;
+					float data_left = (float)val_left[feature];
+					val_left[feature] = (data_left > 1.f) ? 1.0f : data_left;
+					val_left[feature] = (data_left < -1.f) ? -1.0f : data_left;
+					float data_right = (float)data_right[feature];
+					val_right[feature] = (data_right > 1.f) ? 1.0f : data_right;
+					val_right[feature] = (data_right < -1.f) ? -1.0f : data_right;
 					// val_left[feature] = 1.0f - tanhf((float)val_left[feature]) * tanhf((float)val_left[feature]);
 					// val_right[feature] = 1.0f - tanhf((float)val_right[feature]) * tanhf((float)val_right[feature]);
 					grads[feature][grad_dim] += weight * ((float)val_right[feature] - (float)val_left[feature]) * pos_derivative[grad_dim];
