@@ -382,10 +382,10 @@ __global__ void kernel_grid(
 
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-					float data = (float)val_left[feature]
+					float data = (float)val_left[feature];
 					val_left[feature] = (data > 1.f) ? 1.0f : data;
 					val_left[feature] = (data < -1.f) ? -1.0f : data;
-					float data = (float)val_right[feature]
+					float data = (float)val_right[feature];
 					val_right[feature] = (data > 1.f) ? 1.0f : data;
 					val_right[feature] = (data < -1.f) ? -1.0f : data;
 					// val_left[feature] = 1.0f - tanhf((float)val_left[feature]) * tanhf((float)val_left[feature]);
