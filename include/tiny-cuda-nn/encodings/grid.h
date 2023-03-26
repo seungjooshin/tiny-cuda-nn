@@ -336,10 +336,10 @@ __global__ void kernel_grid(
 
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-				float data = tanhf((float)((T*)&val)[feature]);
+				float data = (float)((T*)&val)[feature];
 				// data = (data > 1.0f) ? 1.0f : data;
 				// data = (data < -1.0f) ? -1.0f : data;
-				// data = (data >= 0.f) ? 1.0f : -1.0f;
+				data = (data >= 0.f) ? 1.0f : -1.0f;
 				if (fabsf(data) < quantize_threshold) data = 0.f;
 				((T*)&result)[feature] += (T)(weight * data);
 			}
@@ -382,8 +382,14 @@ __global__ void kernel_grid(
 
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-					val_left[feature] = 1.0f - tanhf((float)val_left[feature]) * tanhf((float)val_left[feature]);
-					val_right[feature] = 1.0f - tanhf((float)val_right[feature]) * tanhf((float)val_right[feature]);
+					float data = (float)val_left[feature]
+					val_left[feature] = (data > 1.f) ? 1.0f : data;
+					val_left[feature] = (data < -1.f) ? -1.0f : data;
+					float data = (float)val_right[feature]
+					val_right[feature] = (data > 1.f) ? 1.0f : data;
+					val_right[feature] = (data < -1.f) ? -1.0f : data;
+					// val_left[feature] = 1.0f - tanhf((float)val_left[feature]) * tanhf((float)val_left[feature]);
+					// val_right[feature] = 1.0f - tanhf((float)val_right[feature]) * tanhf((float)val_right[feature]);
 					grads[feature][grad_dim] += weight * ((float)val_right[feature] - (float)val_left[feature]) * pos_derivative[grad_dim];
 				}
 			}
