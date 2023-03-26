@@ -339,8 +339,8 @@ __global__ void kernel_grid(
 				float data = (float)((T*)&val)[feature];
 				// data = (data > 1.0f) ? 1.0f : data;
 				// data = (data < -1.0f) ? -1.0f : data;
-				data = (data >= 0.f) ? 1.0f : -1.0f;
 				if (fabsf(data) < quantize_threshold) data = 0.f;
+				data = (data >= 0.f) ? 1.0f : -1.0f;
 				((T*)&result)[feature] += (T)(weight * data);
 			}
 		}
