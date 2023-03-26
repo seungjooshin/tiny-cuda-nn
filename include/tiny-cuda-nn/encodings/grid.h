@@ -385,7 +385,7 @@ __global__ void kernel_grid(
 					float data_left = (float)val_left[feature];
 					val_left[feature] = (data_left > 1.0f) ? 1.0f : data_left;
 					val_left[feature] = (data_left < -1.0f) ? -1.0f : data_left;
-					float data_right = (float)data_right[feature];
+					float data_right = (float)val_right[feature];
 					val_right[feature] = (data_right > 1.0f) ? 1.0f : data_right;
 					val_right[feature] = (data_right < -1.0f) ? -1.0f : data_right;
 					// val_left[feature] = 1.0f - tanhf((float)val_left[feature]) * tanhf((float)val_left[feature]);
