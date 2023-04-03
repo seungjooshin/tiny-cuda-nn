@@ -239,7 +239,7 @@ class _module_function_binary_backward(torch.autograd.Function):
 			#       doutput_grad uses dinput_grad
 			#       params_grad  uses dinput_grad * doutput
 			#       input_grad   uses dinput_grad * doutput
-			params_grad = None if params_grad is None else torch.nn.functional.hardtanh(params_grad / ctx.ctx_fwd.loss_scale))
+			params_grad = None if params_grad is None else torch.nn.functional.hardtanh(params_grad / ctx.ctx_fwd.loss_scale)
 			input_grad = None if input_grad is None else (input_grad / ctx.ctx_fwd.loss_scale)
 
 		# ctx_fwd,   doutput,      input,      params,      output
