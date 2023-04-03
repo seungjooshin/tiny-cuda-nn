@@ -247,7 +247,7 @@ class _module_function_binary_backward(torch.autograd.Function):
 
 class BinaryModule(torch.nn.Module):
 	def __init__(self, seed=1337):
-		super(Module, self).__init__()
+		super(BinaryModule, self).__init__()
 
 		self.native_tcnn_module = self._native_tcnn_module()
 		self.dtype = _torch_precision(self.native_tcnn_module.param_precision())
