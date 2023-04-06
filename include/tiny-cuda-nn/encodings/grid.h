@@ -324,10 +324,12 @@ __global__ void kernel_grid(
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 				if ((idx & (1<<dim)) == 0) {
-					weight *= 1 - pos[dim];
+					weight *= 0.5;
+					// weight *= 1 - pos[dim];
 					pos_grid_local[dim] = pos_grid[dim];
 				} else {
-					weight *= pos[dim];
+					weight *= 0.5;
+					// weight *= pos[dim];
 					pos_grid_local[dim] = pos_grid[dim] + 1;
 				}
 			}
@@ -360,10 +362,12 @@ __global__ void kernel_grid(
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 				if ((idx & (1<<dim)) == 0) {
-					weight *= 1 - pos[dim];
+					weight *= 0.5;
+					// weight *= 1 - pos[dim];
 					pos_grid_local[dim] = pos_grid[dim];
 				} else {
-					weight *= pos[dim];
+					weight *= 0.5;
+					// weight *= pos[dim];
 					pos_grid_local[dim] = pos_grid[dim] + 1;
 				}
 			}
@@ -401,10 +405,12 @@ __global__ void kernel_grid(
 					const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
 
 					if ((idx & (1<<non_grad_dim)) == 0) {
-						weight *= 1 - pos[dim];
+						weight *= 0.5;
+						// weight *= 1 - pos[dim];
 						pos_grid_local[dim] = pos_grid[dim];
 					} else {
-						weight *= pos[dim];
+						weight *= 0.5;
+						// weight *= pos[dim];
 						pos_grid_local[dim] = pos_grid[dim] + 1;
 					}
 				}
@@ -548,10 +554,12 @@ __global__ void kernel_grid_backward(
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 			if ((idx & (1<<dim)) == 0) {
-				weight *= 1 - pos[dim];
+				weight *= 0.5;
+				// weight *= 1 - pos[dim];
 				pos_grid_local[dim] = pos_grid[dim];
 			} else {
-				weight *= pos[dim];
+				weight *= 0.5;
+				// weight *= pos[dim];
 				pos_grid_local[dim] = pos_grid[dim] + 1;
 			}
 		}
@@ -757,10 +765,12 @@ __global__ void kernel_grid_backward_input_backward_grid(
 					const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
 
 					if ((idx & 1<<non_grad_dim) == 0) {
-						weight *= 1 - pos[dim];
+						// weight *= 1 - pos[dim];
+						weight *= 0.5;
 						pos_grid_local[dim] = pos_grid[dim];
 					} else {
-						weight *= pos[dim];
+						// weight *= pos[dim];
+						weight *= 0.5;
 						pos_grid_local[dim] = pos_grid[dim] + 1;
 					}
 				}
@@ -787,10 +797,12 @@ __global__ void kernel_grid_backward_input_backward_grid(
 					const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
 
 					if ((idx & 1<<non_grad_dim) == 0) {
-						weight *= 1 - pos[dim];
+						// weight *= 1 - pos[dim];
+						weight *= 0.5;
 						pos_grid_local[dim] = pos_grid[dim];
 					} else {
-						weight *= pos[dim];
+						// weight *= pos[dim];
+						weight *= 0.5;
 						pos_grid_local[dim] = pos_grid[dim] + 1;
 					}
 				}
