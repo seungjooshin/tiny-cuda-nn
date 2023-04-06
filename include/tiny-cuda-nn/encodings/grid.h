@@ -631,7 +631,11 @@ __global__ void kernel_grid_backward_input_backward_grid(
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600 // atomicAdd(__half2) is only supported with compute capability 60 and above
 		if (N_FEATURES_PER_THREAD > 1 && std::is_same<GRAD_T, __half>::value) {
 			for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; f += 2) {
-				__half2 v = {(__half)((float)grad[f] * weight), (__half)((float)grad[f+1] * weight)};
+				// __half2 v = {(__half)((float)grad[f] * weight), (__half)((float)grad[f+1] * weight)};
+				__half2 v = {
+    				(__half)fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f),
+    				(__half)fminf(fmaxf((float)grad[f+1] * weight, -1.0f), 1.0f)
+				};
 				atomicAdd((__half2*)&grid_gradient[index + f], v);
 			}
 		} else
@@ -642,7 +646,8 @@ __global__ void kernel_grid_backward_input_backward_grid(
 				//printf("Attempted to use atomicAdd(__half)\n")
 			} else {
 				for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
-					atomicAdd((float*)&grid_gradient[index + f], (float)grad[f] * weight);
+					// atomicAdd((float*)&grid_gradient[index + f], (float)grad[f] * weight);
+					atomicAdd((float*)&grid_gradient[index + f],fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f));  
 				}
 			}
 		}
