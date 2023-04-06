@@ -274,7 +274,7 @@ __global__ void kernel_grid(
 	float pos_derivative[N_POS_DIMS];
 	uint32_t pos_grid[N_POS_DIMS];
 
-	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::Linear) {
+	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BLinear) {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 			pos_fract(positions_in(dim, i), &pos[dim], &pos_derivative[dim], &pos_grid[dim], scale, identity_fun, identity_derivative);
@@ -312,7 +312,7 @@ __global__ void kernel_grid(
 		return;
 	}
 
-	if (encoded_positions) {
+	if (encoded_positions && interpolation_type == InterpolationType::Linear) {
 		// N-linear interpolation
 		vector_t<T, N_FEATURES_PER_LEVEL> result = {};
 
@@ -338,7 +338,43 @@ __global__ void kernel_grid(
 			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 				float data = (float)((T*)&val)[feature];
 				if (fabsf(data) < quantize_threshold) data = 0.f;
-				data = fminf(fmaxf(data, -1.0f), 1.0f); // apply binary activation function
+				((T*)&result)[feature] += (T)(weight * data);
+			}
+		}
+
+		TCNN_PRAGMA_UNROLL
+		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
+			encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
+		}
+	}
+
+	if (encoded_positions && interpolation_type == InterpolationType::BLinear) {
+		// N-linear interpolation
+		vector_t<T, N_FEATURES_PER_LEVEL> result = {};
+
+		TCNN_PRAGMA_UNROLL
+		for (uint32_t idx = 0; idx < (1 << N_POS_DIMS); ++idx) {
+			float weight = 1;
+			uint32_t pos_grid_local[N_POS_DIMS];
+
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+				if ((idx & (1<<dim)) == 0) {
+					weight *= 1 - pos[dim];
+					pos_grid_local[dim] = pos_grid[dim];
+				} else {
+					weight *= pos[dim];
+					pos_grid_local[dim] = pos_grid[dim] + 1;
+				}
+			}
+
+			auto val = grid_val(pos_grid_local);
+
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+				float data = (float)((T*)&val)[feature];
+				if (fabsf(data) < quantize_threshold) data = 0.f;
+				data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
 				((T*)&result)[feature] += (T)(weight * data);
 			}
 		}
@@ -462,7 +498,7 @@ __global__ void kernel_grid_backward(
 	float pos[N_POS_DIMS];
 	uint32_t pos_grid[N_POS_DIMS];
 
-	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::Linear) {
+	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BLinear) {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 			pos_fract(positions_in(dim, i), &pos[dim], &pos_grid[dim], scale, identity_fun);
@@ -629,6 +665,33 @@ __global__ void kernel_grid_backward_input_backward_grid(
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600 // atomicAdd(__half2) is only supported with compute capability 60 and above
 		if (N_FEATURES_PER_THREAD > 1 && std::is_same<GRAD_T, __half>::value) {
 			for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; f += 2) {
+				__half2 v = {(__half)((float)grad[f] * weight), (__half)((float)grad[f+1] * weight)};
+				// __half2 v = {
+    			// 	(__half)fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f),
+    			// 	(__half)fminf(fmaxf((float)grad[f+1] * weight, -1.0f), 1.0f)
+				// };
+				atomicAdd((__half2*)&grid_gradient[index + f], v);
+			}
+		} else
+#endif
+		{
+			if (std::is_same<GRAD_T, __half>::value) {
+				// Should never happen
+				//printf("Attempted to use atomicAdd(__half)\n")
+			} else {
+				for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
+					atomicAdd((float*)&grid_gradient[index + f], (float)grad[f] * weight);
+					// atomicAdd((float*)&grid_gradient[index + f],fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f));  
+				}
+			}
+		}
+	};
+
+	auto add_grid_gradient_hardtanh = [&](const uint32_t local_pos[N_POS_DIMS], const vector_t<T, N_FEATURES_PER_THREAD>& grad, const float weight) {
+		const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL + feature;
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600 // atomicAdd(__half2) is only supported with compute capability 60 and above
+		if (N_FEATURES_PER_THREAD > 1 && std::is_same<GRAD_T, __half>::value) {
+			for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; f += 2) {
 				// __half2 v = {(__half)((float)grad[f] * weight), (__half)((float)grad[f+1] * weight)};
 				__half2 v = {
     				(__half)fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f),
@@ -678,35 +741,67 @@ __global__ void kernel_grid_backward_input_backward_grid(
 		// d(dydx)_dgrid is zero when there's no interpolation.
 		return;
 	}
-
+	
 	// for N-linear interpolation
 	TCNN_PRAGMA_UNROLL
-	for (uint32_t grad_dim = 0; grad_dim < N_POS_DIMS; ++grad_dim) {
-		float grad_in = scale * dL_ddLdx(grad_dim, i) * pos_derivative[grad_dim];
-		TCNN_PRAGMA_UNROLL
-		for (uint32_t idx = 0; idx < (1 << (N_POS_DIMS-1)); ++idx) {
-			float weight = grad_in;
-			uint32_t pos_grid_local[N_POS_DIMS];
-
+	if (interpolation_type == InterpolationType::Linear) {
+		for (uint32_t grad_dim = 0; grad_dim < N_POS_DIMS; ++grad_dim) {
+			float grad_in = scale * dL_ddLdx(grad_dim, i) * pos_derivative[grad_dim];
 			TCNN_PRAGMA_UNROLL
-			for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
-				const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
+			for (uint32_t idx = 0; idx < (1 << (N_POS_DIMS-1)); ++idx) {
+				float weight = grad_in;
+				uint32_t pos_grid_local[N_POS_DIMS];
 
-				if ((idx & 1<<non_grad_dim) == 0) {
-					weight *= 1 - pos[dim];
-					pos_grid_local[dim] = pos_grid[dim];
-				} else {
-					weight *= pos[dim];
-					pos_grid_local[dim] = pos_grid[dim] + 1;
+				TCNN_PRAGMA_UNROLL
+				for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
+					const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
+
+					if ((idx & 1<<non_grad_dim) == 0) {
+						weight *= 1 - pos[dim];
+						pos_grid_local[dim] = pos_grid[dim];
+					} else {
+						weight *= pos[dim];
+						pos_grid_local[dim] = pos_grid[dim] + 1;
+					}
 				}
-			}
 
-			// left
-			pos_grid_local[grad_dim] = pos_grid[grad_dim];
-			add_grid_gradient(pos_grid_local, grad, -weight);
-			// right
-			pos_grid_local[grad_dim] = pos_grid[grad_dim] + 1;
-			add_grid_gradient(pos_grid_local, grad, weight);
+				// left
+				pos_grid_local[grad_dim] = pos_grid[grad_dim];
+				add_grid_gradient(pos_grid_local, grad, -weight);
+				// right
+				pos_grid_local[grad_dim] = pos_grid[grad_dim] + 1;
+				add_grid_gradient(pos_grid_local, grad, weight);
+			}
+		}
+	}
+	else if (interpolation_type == InterpolationType::BLinear) {
+		for (uint32_t grad_dim = 0; grad_dim < N_POS_DIMS; ++grad_dim) {
+			float grad_in = scale * dL_ddLdx(grad_dim, i) * pos_derivative[grad_dim];
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t idx = 0; idx < (1 << (N_POS_DIMS-1)); ++idx) {
+				float weight = grad_in;
+				uint32_t pos_grid_local[N_POS_DIMS];
+
+				TCNN_PRAGMA_UNROLL
+				for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
+					const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
+
+					if ((idx & 1<<non_grad_dim) == 0) {
+						weight *= 1 - pos[dim];
+						pos_grid_local[dim] = pos_grid[dim];
+					} else {
+						weight *= pos[dim];
+						pos_grid_local[dim] = pos_grid[dim] + 1;
+					}
+				}
+
+				// left
+				pos_grid_local[grad_dim] = pos_grid[grad_dim];
+				add_grid_gradient_hardtanh(pos_grid_local, grad, -weight);
+				// right
+				pos_grid_local[grad_dim] = pos_grid[grad_dim] + 1;
+				add_grid_gradient_hardtanh(pos_grid_local, grad, weight);
+			}
 		}
 	}
 }
@@ -758,7 +853,7 @@ __global__ void kernel_grid_backward_input_backward_input(
 	float pos_2nd_derivative[N_POS_DIMS];
 	uint32_t pos_grid[N_POS_DIMS];
 
-	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::Linear) {
+	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BLinear) {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 			pos_fract(positions_in(dim, i), &pos[dim], &pos_derivative[dim], &pos_2nd_derivative[dim], &pos_grid[dim], scale, identity_fun, identity_derivative, identity_2nd_derivative);

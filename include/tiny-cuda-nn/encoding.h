@@ -40,6 +40,7 @@ enum class InterpolationType {
 	Nearest,
 	Linear,
 	Smoothstep,
+	BLinear,
 };
 
 InterpolationType string_to_interpolation_type(const std::string& interpolation_type);
