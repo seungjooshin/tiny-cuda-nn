@@ -348,7 +348,7 @@ __global__ void kernel_grid(
 
 			auto val = grid_val(pos_grid_local);
 
-			if (interpolation_type == InterpolationType::BiLinear || interpolation_type == InterpolationType::BiLinearApprox){
+			if (interpolation_type == InterpolationType::BinaryLinear || interpolation_type == InterpolationType::BinaryLinearApprox){
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 					float data = (float)((T*)&val)[feature];
