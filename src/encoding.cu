@@ -62,9 +62,9 @@ std::string to_string(InterpolationType interpolation_type) {
 		case InterpolationType::Nearest: return "Nearest";
 		case InterpolationType::Linear: return "Linear";
 		case InterpolationType::Smoothstep: return "Smoothstep";
-		case InterpolationType::BLinear: return "BinaryLinear";
-		case InterpolationType::BLinear: return "LinearApprox";
-		case InterpolationType::BLinear: return "BinaryLinearApprox";
+		case InterpolationType::BinaryLinear: return "BinaryLinear";
+		case InterpolationType::LinearApprox: return "LinearApprox";
+		case InterpolationType::BinaryLinearApprox: return "BinaryLinearApprox";
 		default: throw std::runtime_error{"Invalid interpolation type."};
 	}
 }
