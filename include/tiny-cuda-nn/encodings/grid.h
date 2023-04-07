@@ -274,15 +274,15 @@ __global__ void kernel_grid(
 	float pos_derivative[N_POS_DIMS];
 	uint32_t pos_grid[N_POS_DIMS];
 
-	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BLinear) {
+	if (interpolation_type == InterpolationType::Smoothstep) {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-			pos_fract(positions_in(dim, i), &pos[dim], &pos_derivative[dim], &pos_grid[dim], scale, identity_fun, identity_derivative);
+			pos_fract(positions_in(dim, i), &pos[dim], &pos_derivative[dim], &pos_grid[dim], scale, smoothstep, smoothstep_derivative);
 		}
 	} else {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-			pos_fract(positions_in(dim, i), &pos[dim], &pos_derivative[dim], &pos_grid[dim], scale, smoothstep, smoothstep_derivative);
+			pos_fract(positions_in(dim, i), &pos[dim], &pos_derivative[dim], &pos_grid[dim], scale, identity_fun, identity_derivative);
 		}
 	}
 
@@ -312,7 +312,7 @@ __global__ void kernel_grid(
 		return;
 	}
 
-	if (encoded_positions && interpolation_type == InterpolationType::Linear) {
+	if (encoded_positions) {
 		// N-linear interpolation
 		vector_t<T, N_FEATURES_PER_LEVEL> result = {};
 
@@ -321,65 +321,49 @@ __global__ void kernel_grid(
 			float weight = 1;
 			uint32_t pos_grid_local[N_POS_DIMS];
 
-			TCNN_PRAGMA_UNROLL
-			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-				if ((idx & (1<<dim)) == 0) {
-					weight *= 0.5;
-					// weight *= 1 - pos[dim];
-					pos_grid_local[dim] = pos_grid[dim];
-				} else {
-					weight *= 0.5;
-					// weight *= pos[dim];
-					pos_grid_local[dim] = pos_grid[dim] + 1;
+			if (interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BinaryLinear){
+				TCNN_PRAGMA_UNROLL
+				for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+					if ((idx & (1<<dim)) == 0) {
+						weight *= 1 - pos[dim];
+						pos_grid_local[dim] = pos_grid[dim];
+					} else {
+						weight *= pos[dim];
+						pos_grid_local[dim] = pos_grid[dim] + 1;
+					}
+				}
+			}
+			else {
+				TCNN_PRAGMA_UNROLL
+				for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+					if ((idx & (1<<dim)) == 0) {
+						weight *= 0.5;
+						pos_grid_local[dim] = pos_grid[dim];
+					} else {
+						weight *= 0.5;
+						pos_grid_local[dim] = pos_grid[dim] + 1;
+					}
 				}
 			}
 
 			auto val = grid_val(pos_grid_local);
 
-			TCNN_PRAGMA_UNROLL
-			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-				float data = (float)((T*)&val)[feature];
-				if (fabsf(data) < quantize_threshold) data = 0.f;
-				((T*)&result)[feature] += (T)(weight * data);
-			}
-		}
-
-		TCNN_PRAGMA_UNROLL
-		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-			encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
-		}
-	}
-
-	if (encoded_positions && interpolation_type == InterpolationType::BLinear) {
-		// N-linear interpolation
-		vector_t<T, N_FEATURES_PER_LEVEL> result = {};
-
-		TCNN_PRAGMA_UNROLL
-		for (uint32_t idx = 0; idx < (1 << N_POS_DIMS); ++idx) {
-			float weight = 1;
-			uint32_t pos_grid_local[N_POS_DIMS];
-
-			TCNN_PRAGMA_UNROLL
-			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-				if ((idx & (1<<dim)) == 0) {
-					weight *= 0.5;
-					// weight *= 1 - pos[dim];
-					pos_grid_local[dim] = pos_grid[dim];
-				} else {
-					weight *= 0.5;
-					// weight *= pos[dim];
-					pos_grid_local[dim] = pos_grid[dim] + 1;
+			if (interpolation_type == InterpolationType::BiLinear || interpolation_type == InterpolationType::BiLinearApprox){
+				TCNN_PRAGMA_UNROLL
+				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+					float data = (float)((T*)&val)[feature];
+					if (fabsf(data) < quantize_threshold) data = 0.f;
+					data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
+					((T*)&result)[feature] += (T)(weight * data);
 				}
 			}
-
-			auto val = grid_val(pos_grid_local);
-
-			TCNN_PRAGMA_UNROLL
-			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-				float data = (float)((T*)&val)[feature];
-				if (fabsf(data) < quantize_threshold) data = 0.f;
-				data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
-				((T*)&result)[feature] += (T)(weight * data);
+			else {
+				TCNN_PRAGMA_UNROLL
+				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+					float data = (float)((T*)&val)[feature];
+					if (fabsf(data) < quantize_threshold) data = 0.f;
+					((T*)&result)[feature] += (T)(weight * data);
+				}
 			}
 		}
 
@@ -400,18 +384,32 @@ __global__ void kernel_grid(
 				float weight = scale;
 				uint32_t pos_grid_local[N_POS_DIMS];
 
-				TCNN_PRAGMA_UNROLL
-				for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
-					const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
+				if (interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BinaryLinear){
+					TCNN_PRAGMA_UNROLL
+					for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
+						const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
 
-					if ((idx & (1<<non_grad_dim)) == 0) {
-						weight *= 0.5;
-						// weight *= 1 - pos[dim];
-						pos_grid_local[dim] = pos_grid[dim];
-					} else {
-						weight *= 0.5;
-						// weight *= pos[dim];
-						pos_grid_local[dim] = pos_grid[dim] + 1;
+						if ((idx & (1<<non_grad_dim)) == 0) {
+							weight *= 1 - pos[dim];
+							pos_grid_local[dim] = pos_grid[dim];
+						} else {
+							weight *= pos[dim];
+							pos_grid_local[dim] = pos_grid[dim] + 1;
+						}
+					}
+				}
+				else {
+					TCNN_PRAGMA_UNROLL
+					for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
+						const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
+
+						if ((idx & (1<<non_grad_dim)) == 0) {
+							weight *= 0.5;
+							pos_grid_local[dim] = pos_grid[dim];
+						} else {
+							weight *= 0.5;
+							pos_grid_local[dim] = pos_grid[dim] + 1;
+						}
 					}
 				}
 
@@ -426,13 +424,6 @@ __global__ void kernel_grid(
 				}
 			}
 		}
-
-		// TCNN_PRAGMA_UNROLL
-		// for (uint32_t grad_dim = 0; grad_dim < N_POS_DIMS; ++grad_dim) {
-		// 	for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-		// 		grads[feature][grad_dim] = fabsf((float)grads[feature][grad_dim]) > 1.0f ? 0.0f : (float)grads[feature][grad_dim];
-		// 	}
-		// }
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
@@ -504,15 +495,15 @@ __global__ void kernel_grid_backward(
 	float pos[N_POS_DIMS];
 	uint32_t pos_grid[N_POS_DIMS];
 
-	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BLinear) {
+	if (interpolation_type == InterpolationType::Smoothstep) {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-			pos_fract(positions_in(dim, i), &pos[dim], &pos_grid[dim], scale, identity_fun);
+			pos_fract(positions_in(dim, i), &pos[dim], &pos_grid[dim], scale, smoothstep);
 		}
 	} else {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-			pos_fract(positions_in(dim, i), &pos[dim], &pos_grid[dim], scale, smoothstep);
+			pos_fract(positions_in(dim, i), &pos[dim], &pos_grid[dim], scale, identity_fun);
 		}
 	}
 
@@ -551,19 +542,30 @@ __global__ void kernel_grid_backward(
 		float weight = 1;
 		uint32_t pos_grid_local[N_POS_DIMS];
 
-		TCNN_PRAGMA_UNROLL
-		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-			if ((idx & (1<<dim)) == 0) {
-				weight *= 0.5;
-				// weight *= 1 - pos[dim];
-				pos_grid_local[dim] = pos_grid[dim];
-			} else {
-				weight *= 0.5;
-				// weight *= pos[dim];
-				pos_grid_local[dim] = pos_grid[dim] + 1;
+		if (interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BinaryLinear){
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+				if ((idx & (1<<dim)) == 0) {
+					weight *= 1 - pos[dim];
+					pos_grid_local[dim] = pos_grid[dim];
+				} else {
+					weight *= pos[dim];
+					pos_grid_local[dim] = pos_grid[dim] + 1;
+				}
 			}
 		}
-
+		else {
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+				if ((idx & (1<<dim)) == 0) {
+					weight *= 0.5;
+					pos_grid_local[dim] = pos_grid[dim];
+				} else {
+					weight *= 0.5;
+					pos_grid_local[dim] = pos_grid[dim] + 1;
+				}
+			}
+		}
 		add_grid_gradient(pos_grid_local, grad, weight);
 	}
 }
@@ -752,7 +754,7 @@ __global__ void kernel_grid_backward_input_backward_grid(
 	
 	// for N-linear interpolation
 	TCNN_PRAGMA_UNROLL
-	if (interpolation_type == InterpolationType::Linear) {
+	if (interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::LinearApprox) {
 		for (uint32_t grad_dim = 0; grad_dim < N_POS_DIMS; ++grad_dim) {
 			float grad_in = scale * dL_ddLdx(grad_dim, i) * pos_derivative[grad_dim];
 			TCNN_PRAGMA_UNROLL
@@ -760,18 +762,32 @@ __global__ void kernel_grid_backward_input_backward_grid(
 				float weight = grad_in;
 				uint32_t pos_grid_local[N_POS_DIMS];
 
-				TCNN_PRAGMA_UNROLL
-				for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
-					const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
+				if (interpolation_type == InterpolationType::Linear) {
+					TCNN_PRAGMA_UNROLL
+					for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
+						const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
 
-					if ((idx & 1<<non_grad_dim) == 0) {
-						// weight *= 1 - pos[dim];
-						weight *= 0.5;
-						pos_grid_local[dim] = pos_grid[dim];
-					} else {
-						// weight *= pos[dim];
-						weight *= 0.5;
-						pos_grid_local[dim] = pos_grid[dim] + 1;
+						if ((idx & 1<<non_grad_dim) == 0) {
+							weight *= 1 - pos[dim];
+							pos_grid_local[dim] = pos_grid[dim];
+						} else {
+							weight *= pos[dim];
+							pos_grid_local[dim] = pos_grid[dim] + 1;
+						}
+					}
+				}
+				else {
+					TCNN_PRAGMA_UNROLL
+					for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
+						const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
+
+						if ((idx & 1<<non_grad_dim) == 0) {
+							weight *= 0.5;
+							pos_grid_local[dim] = pos_grid[dim];
+						} else {
+							weight *= 0.5;
+							pos_grid_local[dim] = pos_grid[dim] + 1;
+						}
 					}
 				}
 
@@ -784,7 +800,7 @@ __global__ void kernel_grid_backward_input_backward_grid(
 			}
 		}
 	}
-	else if (interpolation_type == InterpolationType::BLinear) {
+	else if (interpolation_type == InterpolationType::BinaryLinear || interpolation_type == InterpolationType::BinaryLinearApprox) {
 		for (uint32_t grad_dim = 0; grad_dim < N_POS_DIMS; ++grad_dim) {
 			float grad_in = scale * dL_ddLdx(grad_dim, i) * pos_derivative[grad_dim];
 			TCNN_PRAGMA_UNROLL
@@ -792,18 +808,32 @@ __global__ void kernel_grid_backward_input_backward_grid(
 				float weight = grad_in;
 				uint32_t pos_grid_local[N_POS_DIMS];
 
-				TCNN_PRAGMA_UNROLL
-				for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
-					const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
+				if (interpolation_type == InterpolationType::BinaryLinear) {
+					TCNN_PRAGMA_UNROLL
+					for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
+						const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
 
-					if ((idx & 1<<non_grad_dim) == 0) {
-						// weight *= 1 - pos[dim];
-						weight *= 0.5;
-						pos_grid_local[dim] = pos_grid[dim];
-					} else {
-						// weight *= pos[dim];
-						weight *= 0.5;
-						pos_grid_local[dim] = pos_grid[dim] + 1;
+						if ((idx & 1<<non_grad_dim) == 0) {
+							weight *= 1 - pos[dim];
+							pos_grid_local[dim] = pos_grid[dim];
+						} else {
+							weight *= pos[dim];
+							pos_grid_local[dim] = pos_grid[dim] + 1;
+						}
+					}
+				}
+				else {
+					TCNN_PRAGMA_UNROLL
+					for (uint32_t non_grad_dim = 0; non_grad_dim < N_POS_DIMS-1; ++non_grad_dim) {
+						const uint32_t dim = non_grad_dim >= grad_dim ? (non_grad_dim+1) : non_grad_dim;
+
+						if ((idx & 1<<non_grad_dim) == 0) {
+							weight *= 0.5;
+							pos_grid_local[dim] = pos_grid[dim];
+						} else {
+							weight *= 0.5;
+							pos_grid_local[dim] = pos_grid[dim] + 1;
+						}
 					}
 				}
 
@@ -865,15 +895,15 @@ __global__ void kernel_grid_backward_input_backward_input(
 	float pos_2nd_derivative[N_POS_DIMS];
 	uint32_t pos_grid[N_POS_DIMS];
 
-	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BLinear) {
+	if (interpolation_type == InterpolationType::Smoothstep) {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-			pos_fract(positions_in(dim, i), &pos[dim], &pos_derivative[dim], &pos_2nd_derivative[dim], &pos_grid[dim], scale, identity_fun, identity_derivative, identity_2nd_derivative);
+			pos_fract(positions_in(dim, i), &pos[dim], &pos_derivative[dim], &pos_2nd_derivative[dim], &pos_grid[dim], scale, smoothstep, smoothstep_derivative, smoothstep_2nd_derivative);
 		}
 	} else {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-			pos_fract(positions_in(dim, i), &pos[dim], &pos_derivative[dim], &pos_2nd_derivative[dim], &pos_grid[dim], scale, smoothstep, smoothstep_derivative, smoothstep_2nd_derivative);
+			pos_fract(positions_in(dim, i), &pos[dim], &pos_derivative[dim], &pos_2nd_derivative[dim], &pos_grid[dim], scale, identity_fun, identity_derivative, identity_2nd_derivative);
 		}
 	}
 
