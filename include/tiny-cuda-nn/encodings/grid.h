@@ -573,7 +573,9 @@ __global__ void kernel_grid_backward(
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 				float data = (float)((T*)&val)[feature];
-				if (data > 1.0f || data < -1.0f) ((T*)&grad)[feature] = (T)(0.f);
+				if (data > 1.0f || data < -1.0f) {
+					((T*)&grad)[feature] = (T)(0.f);
+				}
 			}
 		}
 		add_grid_gradient(pos_grid_local, grad, weight);
