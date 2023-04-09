@@ -542,7 +542,7 @@ __global__ void kernel_grid_backward(
 		float weight = 1;
 		uint32_t pos_grid_local[N_POS_DIMS];
 
-		if (interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BinaryLinear){
+		if (interpolation_type == InterpolationType::Linear || interpolation_type == InterpolationType::BinaryLinear) {
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 				if ((idx & (1<<dim)) == 0) {
@@ -569,12 +569,12 @@ __global__ void kernel_grid_backward(
 
 		auto val = grid_val(pos_grid_local);
 
-		if (interpolation_type == InterpolationType::BinaryLinear || interpolation_type == InterpolationType::BinaryLinearApprox){
+		if (interpolation_type == InterpolationType::BinaryLinear || interpolation_type == InterpolationType::BinaryLinearApprox) {
 			TCNN_PRAGMA_UNROLL
-			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-				float data = (float)((T*)&val)[feature];
+			for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
+				float data = (float)((T*)&val)[f];
 				if (data > 1.0f || data < -1.0f) {
-					((T*)&grad)[feature] = (T)(0.f);
+					((T*)&grad)[f] = (T)(0.f * (float)((T*)&grad)[f]);
 				}
 			}
 		}
