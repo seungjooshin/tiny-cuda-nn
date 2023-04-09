@@ -569,15 +569,6 @@ __global__ void kernel_grid_backward(
 
 		auto val = grid_val(pos_grid_local);
 
-		// if (interpolation_type == InterpolationType::BinaryLinear || interpolation_type == InterpolationType::BinaryLinearApprox) {
-		// 	TCNN_PRAGMA_UNROLL
-		// 	for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
-		// 		float data = (float)((T*)&val)[f];
-		// 		if (data > 1.0f || data < -1.0f) {
-		// 			((T*)&grad)[f] = (T)(0.f * (float)((T*)&grad)[f]);
-		// 		}
-		// 	}
-		// }
 		add_grid_gradient(pos_grid_local, grad, weight);
 	}
 }
