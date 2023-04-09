@@ -566,6 +566,16 @@ __global__ void kernel_grid_backward(
 				}
 			}
 		}
+
+		auto val = grid_val(pos_grid_local);
+
+		if (interpolation_type == InterpolationType::BinaryLinear || interpolation_type == InterpolationType::BinaryLinearApprox){
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+				float data = (float)((T*)&val)[feature];
+				if (data > 1.0f || data < -1.0f) ((T*)&grad)[feature] = (T)(0.f);
+			}
+		}
 		add_grid_gradient(pos_grid_local, grad, weight);
 	}
 }
@@ -839,10 +849,12 @@ __global__ void kernel_grid_backward_input_backward_grid(
 
 				// left
 				pos_grid_local[grad_dim] = pos_grid[grad_dim];
-				add_grid_gradient_hardtanh(pos_grid_local, grad, -weight);
+				// add_grid_gradient_hardtanh(pos_grid_local, grad, -weight);
+				add_grid_gradient(pos_grid_local, grad, -weight);
 				// right
 				pos_grid_local[grad_dim] = pos_grid[grad_dim] + 1;
-				add_grid_gradient_hardtanh(pos_grid_local, grad, weight);
+				// add_grid_gradient_hardtanh(pos_grid_local, grad, weight);
+				add_grid_gradient(pos_grid_local, grad, weight);
 			}
 		}
 	}
