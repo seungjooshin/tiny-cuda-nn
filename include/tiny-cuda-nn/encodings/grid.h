@@ -567,8 +567,6 @@ __global__ void kernel_grid_backward(
 			}
 		}
 
-		auto val = grid_val(pos_grid_local);
-
 		add_grid_gradient(pos_grid_local, grad, weight);
 	}
 }
