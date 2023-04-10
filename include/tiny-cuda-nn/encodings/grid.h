@@ -337,10 +337,10 @@ __global__ void kernel_grid(
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 					if ((idx & (1<<dim)) == 0) {
-						weight *= 0.5;
+						// weight *= 0.5;
 						pos_grid_local[dim] = pos_grid[dim];
 					} else {
-						weight *= 0.5;
+						// weight *= 0.5;
 						pos_grid_local[dim] = pos_grid[dim] + 1;
 					}
 				}
@@ -492,6 +492,28 @@ __global__ void kernel_grid_backward(
 		}
 	};
 
+	auto add_grid_gradient_approx = [&](const uint32_t local_pos[N_POS_DIMS], const vector_t<T, N_FEATURES_PER_THREAD>& grad) {
+		uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL + feature;
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600 // atomicAdd(__half2) is only supported with compute capability 60 and above
+		if (N_FEATURES_PER_THREAD > 1 && std::is_same<GRAD_T, __half>::value) {
+			for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; f += 2) {
+				__half2 v = {(__half)((float)grad[f]), (__half)((float)grad[f+1])};
+				atomicAdd((__half2*)&grid_gradient[index + f], v);
+			}
+		} else
+#endif
+		{
+			if (std::is_same<GRAD_T, __half>::value) {
+				// Should never happen
+				//printf("Attempted to use atomicAdd(__half)\n")
+			} else {
+				for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
+					atomicAdd((float*)&grid_gradient[index + f], (float)grad[f]);
+				}
+			}
+		}
+	};
+
 	float pos[N_POS_DIMS];
 	uint32_t pos_grid[N_POS_DIMS];
 
@@ -553,21 +575,23 @@ __global__ void kernel_grid_backward(
 					pos_grid_local[dim] = pos_grid[dim] + 1;
 				}
 			}
+			add_grid_gradient(pos_grid_local, grad, weight);
 		}
 		else {
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 				if ((idx & (1<<dim)) == 0) {
-					weight *= 0.5;
+					// weight *= 0.5;
 					pos_grid_local[dim] = pos_grid[dim];
 				} else {
-					weight *= 0.5;
+					// weight *= 0.5;
 					pos_grid_local[dim] = pos_grid[dim] + 1;
 				}
 			}
+			add_grid_gradient_approx(pos_grid_local, grad);
 		}
 
-		add_grid_gradient(pos_grid_local, grad, weight);
+		// add_grid_gradient(pos_grid_local, grad, weight);
 	}
 }
 
