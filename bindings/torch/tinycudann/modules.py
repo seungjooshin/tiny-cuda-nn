@@ -363,8 +363,10 @@ class Encoding(Module):
 		super(Encoding, self).__init__(seed=seed)
 
 		self.n_output_dims = self.native_tcnn_module.n_output_dims()
-		interpolation = encoding_config['interpolation']
-		self.binary = True if interpolation == 'BinaryLinear' or interpolation == 'BinaryLinearApprox' else False
+		self.binary = False
+		if 'interpolation' in encoding_config.keys():
+			interpolation = encoding_config['interpolation']
+			self.binary = True if interpolation == 'BinaryLinear' or interpolation == 'BinaryLinearApprox'
 
 	def _native_tcnn_module(self):
 		return _C.create_encoding(self.n_input_dims, self.encoding_config, self.precision)
