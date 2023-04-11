@@ -337,10 +337,10 @@ __global__ void kernel_grid(
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 					if ((idx & (1<<dim)) == 0) {
-						// weight *= 0.5;
+						weight *= 0.5;
 						pos_grid_local[dim] = pos_grid[dim];
 					} else {
-						// weight *= 0.5;
+						weight *= 0.5;
 						pos_grid_local[dim] = pos_grid[dim] + 1;
 					}
 				}
@@ -354,8 +354,7 @@ __global__ void kernel_grid(
 					float data = (float)((T*)&val)[feature];
 					if (fabsf(data) < quantize_threshold) data = 0.f;
 					data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
-					if (interpolation_type == InterpolationType::BinaryLinear) data /= (1<<N_POS_DIMS);
-					((T*)&result)[feature] += (T)(data);
+					((T*)&result)[feature] += (T)(weight * data);
 				}
 			}
 			else {
@@ -560,16 +559,15 @@ __global__ void kernel_grid_backward(
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
 				if ((idx & (1<<dim)) == 0) {
-					// weight *= 0.5;
+					weight *= 0.5;
 					pos_grid_local[dim] = pos_grid[dim];
 				} else {
-					// weight *= 0.5;
+					weight *= 0.5;
 					pos_grid_local[dim] = pos_grid[dim] + 1;
 				}
 			}
-			add_grid_gradient(pos_grid_local, grad, weight / (1<<N_POS_DIMS));
+			add_grid_gradient(pos_grid_local, grad, weight);
 		}
-
 		// add_grid_gradient(pos_grid_local, grad, weight);
 	}
 }
