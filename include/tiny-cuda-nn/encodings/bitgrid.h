@@ -296,7 +296,7 @@ __global__ void kernel_bitgrid_backward(
 
 	TCNN_PRAGMA_UNROLL
 	for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
-		grad[f] = dL_dy[i + (level * N_FEATURES_PER_LEVEL + feature + f) * num_elements];
+		grad[f] = dL_dy[i + (level * 4u * N_FEATURES_PER_LEVEL + feature + f) * num_elements];
 	}
 
 	add_grid_gradient(pos_grid, grad, 1.0f);
