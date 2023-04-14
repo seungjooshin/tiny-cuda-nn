@@ -41,7 +41,6 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include <type_traits>
 
 TCNN_NAMESPACE_BEGIN
 
@@ -292,12 +291,6 @@ __global__ void kernel_grid(
 		return *(vector_t<T, N_FEATURES_PER_LEVEL>*)&grid[index];
 	};
 
-	auto grid_val = [&](const uint32_t local_pos[N_POS_DIMS]) {
-    	const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
-    	using grid_type = std::remove_pointer_t<std::decay_t<decltype(&grid[index])>>;
-    	return *(vector_t<grid_type, N_FEATURES_PER_LEVEL>*)&grid[index];
-	};
-
 	if (interpolation_type == InterpolationType::Nearest) {
 		auto result = grid_val(pos_grid);
 
@@ -362,10 +355,6 @@ __global__ void kernel_grid(
 					if (fabsf(data) < quantize_threshold) data = 0.f;
 					data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
 					((T*)&result)[feature] += (T)(weight * data);
-					// float data = (float)((T*)&val)[feature];
-					// if (fabsf(data) < quantize_threshold) data = 0.f;
-					// data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
-					// ((T*)&result)[feature] += ((bool*)&val)[feature] == true ? weight : -1.0f * weight;
 				}
 			}
 			else {
@@ -705,6 +694,33 @@ __global__ void kernel_grid_backward_input_backward_grid(
 				for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
 					atomicAdd((float*)&grid_gradient[index + f], (float)grad[f] * weight);
 					// atomicAdd((float*)&grid_gradient[index + f],fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f));  
+				}
+			}
+		}
+	};
+
+	auto add_grid_gradient_hardtanh = [&](const uint32_t local_pos[N_POS_DIMS], const vector_t<T, N_FEATURES_PER_THREAD>& grad, const float weight) {
+		const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL + feature;
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600 // atomicAdd(__half2) is only supported with compute capability 60 and above
+		if (N_FEATURES_PER_THREAD > 1 && std::is_same<GRAD_T, __half>::value) {
+			for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; f += 2) {
+				// __half2 v = {(__half)((float)grad[f] * weight), (__half)((float)grad[f+1] * weight)};
+				__half2 v = {
+    				(__half)fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f),
+    				(__half)fminf(fmaxf((float)grad[f+1] * weight, -1.0f), 1.0f)
+				};
+				atomicAdd((__half2*)&grid_gradient[index + f], v);
+			}
+		} else
+#endif
+		{
+			if (std::is_same<GRAD_T, __half>::value) {
+				// Should never happen
+				//printf("Attempted to use atomicAdd(__half)\n")
+			} else {
+				for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
+					// atomicAdd((float*)&grid_gradient[index + f], (float)grad[f] * weight);
+					atomicAdd((float*)&grid_gradient[index + f],fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f));  
 				}
 			}
 		}
