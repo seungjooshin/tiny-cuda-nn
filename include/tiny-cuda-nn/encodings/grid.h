@@ -354,7 +354,8 @@ __global__ void kernel_grid(
 					float data = (float)((T*)&val)[feature];
 					if (fabsf(data) < quantize_threshold) data = 0.f;
 					data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
-					((T*)&result)[feature] += ((bool*)&val)[feature] == true ? (T)weight : (T)(-1.0f * weight);
+					((T*)&result)[feature] += (T)(weight * data);
+					// ((T*)&result)[feature] += ((bool*)&val)[feature] == true ? (T)weight : (T)(-1.0f * weight);
 					// float data = (float)((T*)&val)[feature];
 					// if (fabsf(data) < quantize_threshold) data = 0.f;
 					// data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
