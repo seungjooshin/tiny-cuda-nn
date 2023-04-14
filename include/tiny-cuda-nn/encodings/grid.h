@@ -41,6 +41,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include <type_traits>
 
 TCNN_NAMESPACE_BEGIN
 
@@ -286,9 +287,14 @@ __global__ void kernel_grid(
 		}
 	}
 
+	// auto grid_val = [&](const uint32_t local_pos[N_POS_DIMS]) {
+	// 	const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
+	// 	return *(vector_t<T, N_FEATURES_PER_LEVEL>*)&grid[index];
+	// };
 	auto grid_val = [&](const uint32_t local_pos[N_POS_DIMS]) {
-		const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
-		return *(vector_t<T, N_FEATURES_PER_LEVEL>*)&grid[index];
+    	const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
+    	using grid_type = std::remove_pointer_t<std::decay_t<decltype(&grid[index])>>;
+    	return *(vector_t<grid_type, N_FEATURES_PER_LEVEL>*)&grid[index];
 	};
 
 	if (interpolation_type == InterpolationType::Nearest) {
