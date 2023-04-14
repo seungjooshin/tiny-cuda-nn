@@ -597,7 +597,7 @@ public:
 	m_interpolation_type{interpolation_type},
 	m_grid_type{grid_type}
 	{
-		m_n_levels = div_round_up(m_n_features, N_FEATURES_PER_LEVEL);
+		m_n_levels = div_round_up(m_n_features, 4u * N_FEATURES_PER_LEVEL);
 		uint32_t offset = 0;
 
 		if (m_n_levels > MAX_N_LEVELS) {
