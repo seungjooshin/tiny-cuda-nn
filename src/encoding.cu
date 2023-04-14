@@ -31,6 +31,7 @@
 
 #include <tiny-cuda-nn/encodings/composite.h>
 #include <tiny-cuda-nn/encodings/frequency.h>
+#include <tiny-cuda-nn/encodings/bitgrid.h>
 #include <tiny-cuda-nn/encodings/grid.h>
 #include <tiny-cuda-nn/encodings/identity.h>
 #include <tiny-cuda-nn/encodings/oneblob.h>
@@ -147,6 +148,14 @@ void register_builtin_encodings() {
 	register_encoding<T>("HashGrid", grid_factory);
 	register_encoding<T>("TiledGrid", grid_factory);
 	register_encoding<T>("DenseGrid", grid_factory);
+
+	auto bitgrid_factory = [](uint32_t n_dims_to_encode, const json& encoding) {
+		return create_bitgrid_encoding<T>(n_dims_to_encode, encoding);
+	};
+	register_encoding<T>("Grid", bitgrid_factory);
+	register_encoding<T>("HashGrid", bitgrid_factory);
+	register_encoding<T>("TiledGrid", bitgrid_factory);
+	register_encoding<T>("DenseGrid", bitgrid_factory);
 }
 
 template <typename T>
