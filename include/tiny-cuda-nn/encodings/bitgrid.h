@@ -147,59 +147,66 @@ __global__ void kernel_bitgrid(
 		return;
 	}
 
-	if (encoded_positions) {
-		// N-linear interpolation
-		vector_t<T, N_FEATURES_PER_LEVEL * 4u> result = {};
-
+    if (encoded_positions) {
 		TCNN_PRAGMA_UNROLL
-		for (uint32_t idx = 0; idx < (1 << N_POS_DIMS); ++idx) {
-			float weight = 1;
-			uint32_t pos_grid_local[N_POS_DIMS];
-
-			if (interpolation_type == InterpolationType::BinaryLinear){
-				TCNN_PRAGMA_UNROLL
-				for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-					if ((idx & (1<<dim)) == 0) {
-						weight *= 1 - pos[dim];
-						pos_grid_local[dim] = pos_grid[dim];
-					} else {
-						weight *= pos[dim];
-						pos_grid_local[dim] = pos_grid[dim] + 1;
-					}
-				}
-			}
-			else {
-				TCNN_PRAGMA_UNROLL
-				for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-					if ((idx & (1<<dim)) == 0) {
-						weight *= 0.5;
-						pos_grid_local[dim] = pos_grid[dim];
-					} else {
-						weight *= 0.5;
-						pos_grid_local[dim] = pos_grid[dim] + 1;
-					}
-				}
-			}
-
-			auto val = grid_val(pos_grid_local);
-
-			TCNN_PRAGMA_UNROLL
-			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-				unsigned short data = (unsigned short)((T*)&val)[feature];
-				for (uint32_t bit = 0; bit < 4u; ++bit) {
-    				float bit_data = (data & (1 << bit)) ? 1.0f : -1.0f;
-					((T*)&result)[feature * 4u + bit] += (T)(weight * bit_data);
-				}
-			}
-		}
-
-		TCNN_PRAGMA_UNROLL
-		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-			for (uint32_t bit = 0; bit < 4u; ++bit) {
-				encoded_positions[i + (level * (4u * N_FEATURES_PER_LEVEL) + (4u * f + bit)) * num_elements] = result[4u * f + bit];
-			}
+		for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
+			encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
 		}
 	}
+
+	// if (encoded_positions) {
+	// 	// N-linear interpolation
+	// 	vector_t<T, N_FEATURES_PER_LEVEL * 4u> result = {};
+
+	// 	TCNN_PRAGMA_UNROLL
+	// 	for (uint32_t idx = 0; idx < (1 << N_POS_DIMS); ++idx) {
+	// 		float weight = 1;
+	// 		uint32_t pos_grid_local[N_POS_DIMS];
+
+	// 		if (interpolation_type == InterpolationType::BinaryLinear){
+	// 			TCNN_PRAGMA_UNROLL
+	// 			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+	// 				if ((idx & (1<<dim)) == 0) {
+	// 					weight *= 1 - pos[dim];
+	// 					pos_grid_local[dim] = pos_grid[dim];
+	// 				} else {
+	// 					weight *= pos[dim];
+	// 					pos_grid_local[dim] = pos_grid[dim] + 1;
+	// 				}
+	// 			}
+	// 		}
+	// 		else {
+	// 			TCNN_PRAGMA_UNROLL
+	// 			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+	// 				if ((idx & (1<<dim)) == 0) {
+	// 					weight *= 0.5;
+	// 					pos_grid_local[dim] = pos_grid[dim];
+	// 				} else {
+	// 					weight *= 0.5;
+	// 					pos_grid_local[dim] = pos_grid[dim] + 1;
+	// 				}
+	// 			}
+	// 		}
+
+	// 		auto val = grid_val(pos_grid_local);
+
+	// 		TCNN_PRAGMA_UNROLL
+	// 		for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+	// 			unsigned short data = (unsigned short)((T*)&val)[feature];
+	// 			for (uint32_t bit = 0; bit < 4u; ++bit) {
+    // 				float bit_data = (data & (1 << bit)) ? 1.0f : -1.0f;
+	// 				((T*)&result)[feature * 4u + bit] += (T)(weight * bit_data);
+	// 			}
+	// 		}
+	// 	}
+
+	// 	TCNN_PRAGMA_UNROLL
+	// 	for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
+	// 		for (uint32_t bit = 0; bit < 4u; ++bit) {
+	// 			encoded_positions[i + (level * (4u * N_FEATURES_PER_LEVEL) + (4u * f + bit)) * num_elements] = result[4u * f + bit];
+	// 		}
+	// 	}
+	// }
 
 	// Gradient
 	if (dy_dx) {
