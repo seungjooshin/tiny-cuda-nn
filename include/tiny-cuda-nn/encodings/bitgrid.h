@@ -315,7 +315,7 @@ __global__ void kernel_grid(
 
 	if (encoded_positions) {
 		// N-linear interpolation
-		vector_t<T, N_FEATURES_PER_LEVEL * 4> result = {};
+		vector_t<T, N_FEATURES_PER_LEVEL * 4u> result = {};
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t idx = 0; idx < (1 << N_POS_DIMS); ++idx) {
@@ -352,24 +352,24 @@ __global__ void kernel_grid(
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 				unsigned short data = (unsigned short)((T*)&val)[feature];
-				for (uint32_t bit = 0; bit < 4; ++bit) {
+				for (uint32_t bit = 0; bit < 4u; ++bit) {
     				float bit_data = (data & (1 << bit)) ? 1.0f : -1.0f;
-					((T*)&result)[feature * 4 + bit] += (T)(weight * bit_data);
+					((T*)&result)[feature * 4u + bit] += (T)(weight * bit_data);
 				}
 			}
 		}
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-			for (uint32_t bit = 0; bit < 4; ++bit) {
-				encoded_positions[i + (level * (4 * N_FEATURES_PER_LEVEL) + (4 * f + bit)) * num_elements] = result[4 * f + bit];
+			for (uint32_t bit = 0; bit < 4u; ++bit) {
+				encoded_positions[i + (level * (4u * N_FEATURES_PER_LEVEL) + (4u * f + bit)) * num_elements] = result[4u * f + bit];
 			}
 		}
 	}
 
 	// Gradient
 	if (dy_dx) {
-		vector_fullp_t<N_POS_DIMS> grads[N_FEATURES_PER_LEVEL * 4] = {0};
+		vector_fullp_t<N_POS_DIMS> grads[N_FEATURES_PER_LEVEL * 4u] = {0};
 	}
 }
 
