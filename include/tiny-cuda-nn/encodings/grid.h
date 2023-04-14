@@ -1177,7 +1177,7 @@ public:
 
 		m_n_output_dims = m_n_features;
 		if (interpolation_type == InterpolationType::BinaryLinear or interpolation_type == InterpolationType::BinaryLinearApprox) {
-			m_n_output_dims *= 4;
+			m_n_output_dims = m_n_output_dims * 4;
 		}
 
 		if (n_features % N_FEATURES_PER_LEVEL != 0) {
