@@ -41,6 +41,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include <type_traits>
 
 TCNN_NAMESPACE_BEGIN
 
@@ -229,7 +230,7 @@ __global__ void kernel_grid(
 	const float* __restrict__ max_level_gpu,
 	const InterpolationType interpolation_type,
 	const GridType grid_type,
-	const auto* __restrict__ grid,
+	const T* __restrict__ grid,
 	MatrixView<const float> positions_in,
 	T* __restrict__ encoded_positions,
 	float* __restrict__ dy_dx
@@ -289,6 +290,12 @@ __global__ void kernel_grid(
 	auto grid_val = [&](const uint32_t local_pos[N_POS_DIMS]) {
 		const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
 		return *(vector_t<T, N_FEATURES_PER_LEVEL>*)&grid[index];
+	};
+
+	auto grid_val = [&](const uint32_t local_pos[N_POS_DIMS]) {
+    	const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
+    	using grid_type = std::remove_pointer_t<std::decay_t<decltype(&grid[index])>>;
+    	return *(vector_t<grid_type, N_FEATURES_PER_LEVEL>*)&grid[index];
 	};
 
 	if (interpolation_type == InterpolationType::Nearest) {
@@ -355,7 +362,6 @@ __global__ void kernel_grid(
 					if (fabsf(data) < quantize_threshold) data = 0.f;
 					data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
 					((T*)&result)[feature] += (T)(weight * data);
-					// ((T*)&result)[feature] += ((bool*)&val)[feature] == true ? (T)weight : (T)(-1.0f * weight);
 					// float data = (float)((T*)&val)[feature];
 					// if (fabsf(data) < quantize_threshold) data = 0.f;
 					// data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
