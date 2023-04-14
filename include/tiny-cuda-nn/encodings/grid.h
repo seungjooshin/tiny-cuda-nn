@@ -287,14 +287,9 @@ __global__ void kernel_grid(
 		}
 	}
 
-	// auto grid_val = [&](const uint32_t local_pos[N_POS_DIMS]) {
-	// 	const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
-	// 	return *(vector_t<T, N_FEATURES_PER_LEVEL>*)&grid[index];
-	// };
 	auto grid_val = [&](const uint32_t local_pos[N_POS_DIMS]) {
-    	const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
-    	using grid_type = std::remove_pointer_t<std::decay_t<decltype(&grid[index])>>;
-    	return *(vector_t<grid_type, N_FEATURES_PER_LEVEL>*)&grid[index];
+		const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
+		return *(vector_t<T, N_FEATURES_PER_LEVEL>*)&grid[index];
 	};
 
 	if (interpolation_type == InterpolationType::Nearest) {
@@ -320,7 +315,12 @@ __global__ void kernel_grid(
 
 	if (encoded_positions) {
 		// N-linear interpolation
-		vector_t<T, N_FEATURES_PER_LEVEL> result = {};
+		if (interpolation_type == InterpolationType::BinaryLinear || interpolation_type == InterpolationType::BinaryLinearApprox) {
+			vector_t<T, N_FEATURES_PER_LEVEL * 4> result = {};
+		} 
+		else {
+			vector_t<T, N_FEATURES_PER_LEVEL> result = {};
+		}
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t idx = 0; idx < (1 << N_POS_DIMS); ++idx) {
@@ -355,12 +355,14 @@ __global__ void kernel_grid(
 			auto val = grid_val(pos_grid_local);
 
 			if (interpolation_type == InterpolationType::BinaryLinear || interpolation_type == InterpolationType::BinaryLinearApprox){
+				vector_t<T, N_FEATURES_PER_LEVEL> result = {};
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-					float data = (float)((T*)&val)[feature];
-					if (fabsf(data) < quantize_threshold) data = 0.f;
-					data = data > 0 ? 1.0f : -1.0f; // apply binary activation function
-					((T*)&result)[feature] += (T)(weight * data);
+					unsigned short data = (unsigned short)((T*)&val)[feature];
+					for (int bit = 0; bit < 4; bit++) {
+    					float bit_data = (data & (1 << bit)) ? 1.0f : -1.0f;
+						((T*)&result)[feature * 4 + bit] += (T)(weight * bit_data);
+					}
 				}
 			}
 			else {
@@ -1175,6 +1177,8 @@ public:
 		m_n_params = m_offset_table.data[m_n_levels] * N_FEATURES_PER_LEVEL;
 
 		m_n_output_dims = m_n_features;
+		if (interpolation_type == InterpolationType::BinaryLinearApprox)
+			m_n_output_dims *= 4;
 
 		if (n_features % N_FEATURES_PER_LEVEL != 0) {
 			throw std::runtime_error{fmt::format("GridEncoding: n_features={} must be a multiple of N_FEATURES_PER_LEVEL={}", n_features, N_FEATURES_PER_LEVEL)};
