@@ -358,7 +358,7 @@ __global__ void kernel_grid(
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 					unsigned short data = (unsigned short)((T*)&val)[feature];
-					for (int bit = 0; bit < 4; ++bit) {
+					for (uint32_t bit = 0; bit < 4; ++bit) {
     					float bit_data = (data & (1 << bit)) ? 1.0f : -1.0f;
 						((T*)&result)[feature * 4 + bit] += (T)(weight * bit_data);
 					}
@@ -374,9 +374,19 @@ __global__ void kernel_grid(
 			}
 		}
 
-		TCNN_PRAGMA_UNROLL
-		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-			encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
+		if (interpolation_type == InterpolationType::BinaryLinear || interpolation_type == InterpolationType::BinaryLinearApprox) {
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
+				for (uint32_t bit = 0; bit < 4; ++bit) {
+					encoded_positions[i + (level * (4 * N_FEATURES_PER_LEVEL) + (4 * f + bit)) * num_elements] = result[4 * f + bit];
+				}
+			}
+		}
+		else {
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
+				encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
+			}
 		}
 	}
 
@@ -701,33 +711,6 @@ __global__ void kernel_grid_backward_input_backward_grid(
 				for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
 					atomicAdd((float*)&grid_gradient[index + f], (float)grad[f] * weight);
 					// atomicAdd((float*)&grid_gradient[index + f],fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f));  
-				}
-			}
-		}
-	};
-
-	auto add_grid_gradient_hardtanh = [&](const uint32_t local_pos[N_POS_DIMS], const vector_t<T, N_FEATURES_PER_THREAD>& grad, const float weight) {
-		const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL + feature;
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600 // atomicAdd(__half2) is only supported with compute capability 60 and above
-		if (N_FEATURES_PER_THREAD > 1 && std::is_same<GRAD_T, __half>::value) {
-			for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; f += 2) {
-				// __half2 v = {(__half)((float)grad[f] * weight), (__half)((float)grad[f+1] * weight)};
-				__half2 v = {
-    				(__half)fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f),
-    				(__half)fminf(fmaxf((float)grad[f+1] * weight, -1.0f), 1.0f)
-				};
-				atomicAdd((__half2*)&grid_gradient[index + f], v);
-			}
-		} else
-#endif
-		{
-			if (std::is_same<GRAD_T, __half>::value) {
-				// Should never happen
-				//printf("Attempted to use atomicAdd(__half)\n")
-			} else {
-				for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
-					// atomicAdd((float*)&grid_gradient[index + f], (float)grad[f] * weight);
-					atomicAdd((float*)&grid_gradient[index + f],fminf(fmaxf((float)grad[f] * weight, -1.0f), 1.0f));  
 				}
 			}
 		}
@@ -1175,12 +1158,7 @@ public:
 
 		m_n_params = m_offset_table.data[m_n_levels] * N_FEATURES_PER_LEVEL;
 
-		if (interpolation_type == InterpolationType::BinaryLinear or interpolation_type == InterpolationType::BinaryLinearApprox) {
-			m_n_output_dims = m_n_features * 4;
-		}
-		else {
-			m_n_output_dims = m_n_features;
-		}
+		m_n_output_dims = m_n_features;
 
 		if (n_features % N_FEATURES_PER_LEVEL != 0) {
 			throw std::runtime_error{fmt::format("GridEncoding: n_features={} must be a multiple of N_FEATURES_PER_LEVEL={}", n_features, N_FEATURES_PER_LEVEL)};
@@ -1609,7 +1587,7 @@ GridEncoding<T>* create_grid_encoding_templated_2(uint32_t n_dims_to_encode, con
 			throw std::runtime_error{"GridEncoding: may not specify n_features and n_levels simultaneously (one determines the other)"};
 		}
 	} else {
-		n_features = N_FEATURES_PER_LEVEL * encoding.value("n_levels", 16u);
+		n_features = 4u * N_FEATURES_PER_LEVEL * encoding.value("n_levels", 16u);
 	}
 
 #define TCNN_GRID_PARAMS \
