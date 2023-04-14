@@ -932,7 +932,7 @@ template <typename T, uint32_t N_FEATURES_PER_LEVEL, HashType HASH_TYPE>
 GridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encode, const json& encoding) {
 	const uint32_t log2_hashmap_size = encoding.value("log2_hashmap_size", 19u);
 	const std::string encoding_type = encoding.value("otype", "Grid");
-	const std::string default_type = equals_case_insensitive(encoding_type, "TiledGrid") ? "Tiled" : (equals_case_insensitive(encoding_type, "DenseGrid") ? "Dense" : "Hash");
+	const std::string default_type = equals_case_insensitive(encoding_type, "BitTiledGrid") ? "Tiled" : (equals_case_insensitive(encoding_type, "BitDenseGrid") ? "Dense" : "Hash");
 
 	uint32_t n_features;
 	if (encoding.contains("n_features") || encoding.contains("n_grid_features")) {
@@ -941,7 +941,7 @@ GridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encode, 
 			throw std::runtime_error{"GridEncoding: may not specify n_features and n_levels simultaneously (one determines the other)"};
 		}
 	} else {
-		n_features = N_FEATURES_PER_LEVEL * encoding.value("n_levels", 16u);
+		n_features = 4u * N_FEATURES_PER_LEVEL * encoding.value("n_levels", 16u);
 	}
 
 #define TCNN_GRID_PARAMS \
