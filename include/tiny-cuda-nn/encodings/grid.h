@@ -230,7 +230,7 @@ __global__ void kernel_grid(
 	const float* __restrict__ max_level_gpu,
 	const InterpolationType interpolation_type,
 	const GridType grid_type,
-	const T* __restrict__ grid,
+	const decltype(*grid)* __restrict__ grid,
 	MatrixView<const float> positions_in,
 	T* __restrict__ encoded_positions,
 	float* __restrict__ dy_dx
