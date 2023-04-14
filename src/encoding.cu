@@ -31,7 +31,7 @@
 
 #include <tiny-cuda-nn/encodings/composite.h>
 #include <tiny-cuda-nn/encodings/frequency.h>
-// #include <tiny-cuda-nn/encodings/bitgrid.h>
+#include <tiny-cuda-nn/encodings/bitgrid.h>
 #include <tiny-cuda-nn/encodings/grid.h>
 #include <tiny-cuda-nn/encodings/identity.h>
 #include <tiny-cuda-nn/encodings/oneblob.h>
