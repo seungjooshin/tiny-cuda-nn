@@ -229,7 +229,7 @@ __global__ void kernel_grid(
 	const float* __restrict__ max_level_gpu,
 	const InterpolationType interpolation_type,
 	const GridType grid_type,
-	const T* __restrict__ grid,
+	const auto* __restrict__ grid,
 	MatrixView<const float> positions_in,
 	T* __restrict__ encoded_positions,
 	float* __restrict__ dy_dx
@@ -288,7 +288,7 @@ __global__ void kernel_grid(
 
 	auto grid_val = [&](const uint32_t local_pos[N_POS_DIMS]) {
 		const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
-		return *(vector_t<auto, N_FEATURES_PER_LEVEL>*)&grid[index];
+		return *(vector_t<T, N_FEATURES_PER_LEVEL>*)&grid[index];
 	};
 
 	if (interpolation_type == InterpolationType::Nearest) {
