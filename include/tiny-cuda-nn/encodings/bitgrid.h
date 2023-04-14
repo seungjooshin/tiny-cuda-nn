@@ -208,9 +208,11 @@ __global__ void kernel_bitgrid(
 	// 	}
 	// }
 
-	// Gradient
 	if (dy_dx) {
-		vector_fullp_t<N_POS_DIMS> grads[N_FEATURES_PER_LEVEL * 4u] = {0};
+		TCNN_PRAGMA_UNROLL
+		for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
+			((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = {0};
+		}
 	}
 }
 
