@@ -355,11 +355,10 @@ __global__ void kernel_grid(
 			auto val = grid_val(pos_grid_local);
 
 			if (interpolation_type == InterpolationType::BinaryLinear || interpolation_type == InterpolationType::BinaryLinearApprox){
-				vector_t<T, N_FEATURES_PER_LEVEL> result = {};
 				TCNN_PRAGMA_UNROLL
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 					unsigned short data = (unsigned short)((T*)&val)[feature];
-					for (int bit = 0; bit < 4; bit++) {
+					for (int bit = 0; bit < 4; ++bit) {
     					float bit_data = (data & (1 << bit)) ? 1.0f : -1.0f;
 						((T*)&result)[feature * 4 + bit] += (T)(weight * bit_data);
 					}
@@ -1177,8 +1176,9 @@ public:
 		m_n_params = m_offset_table.data[m_n_levels] * N_FEATURES_PER_LEVEL;
 
 		m_n_output_dims = m_n_features;
-		if (interpolation_type == InterpolationType::BinaryLinearApprox)
+		if (interpolation_type == InterpolationType::BinaryLinear or interpolation_type == InterpolationType::BinaryLinearApprox) {
 			m_n_output_dims *= 4;
+		}
 
 		if (n_features % N_FEATURES_PER_LEVEL != 0) {
 			throw std::runtime_error{fmt::format("GridEncoding: n_features={} must be a multiple of N_FEATURES_PER_LEVEL={}", n_features, N_FEATURES_PER_LEVEL)};
