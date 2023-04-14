@@ -63,7 +63,7 @@ __global__ void kernel_bitgrid(
 	const float* __restrict__ max_level_gpu,
 	const InterpolationType interpolation_type,
 	const GridType grid_type,
-	const decltype(*grid)* __restrict__ grid,
+	const T* __restrict__ grid,
 	MatrixView<const float> positions_in,
 	T* __restrict__ encoded_positions,
 	float* __restrict__ dy_dx
@@ -153,59 +153,59 @@ __global__ void kernel_bitgrid(
 		}
 	}
 
-	// if (encoded_positions) {
-	// 	// N-linear interpolation
-	// 	vector_t<T, N_FEATURES_PER_LEVEL * 4u> result = {};
+	if (encoded_positions) {
+		// N-linear interpolation
+		vector_t<T, N_FEATURES_PER_LEVEL * 4u> result = {};
 
-	// 	TCNN_PRAGMA_UNROLL
-	// 	for (uint32_t idx = 0; idx < (1 << N_POS_DIMS); ++idx) {
-	// 		float weight = 1;
-	// 		uint32_t pos_grid_local[N_POS_DIMS];
+		TCNN_PRAGMA_UNROLL
+		for (uint32_t idx = 0; idx < (1 << N_POS_DIMS); ++idx) {
+			float weight = 1;
+			uint32_t pos_grid_local[N_POS_DIMS];
 
-	// 		if (interpolation_type == InterpolationType::BinaryLinear){
-	// 			TCNN_PRAGMA_UNROLL
-	// 			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-	// 				if ((idx & (1<<dim)) == 0) {
-	// 					weight *= 1 - pos[dim];
-	// 					pos_grid_local[dim] = pos_grid[dim];
-	// 				} else {
-	// 					weight *= pos[dim];
-	// 					pos_grid_local[dim] = pos_grid[dim] + 1;
-	// 				}
-	// 			}
-	// 		}
-	// 		else {
-	// 			TCNN_PRAGMA_UNROLL
-	// 			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-	// 				if ((idx & (1<<dim)) == 0) {
-	// 					weight *= 0.5;
-	// 					pos_grid_local[dim] = pos_grid[dim];
-	// 				} else {
-	// 					weight *= 0.5;
-	// 					pos_grid_local[dim] = pos_grid[dim] + 1;
-	// 				}
-	// 			}
-	// 		}
+			if (interpolation_type == InterpolationType::BinaryLinear){
+				TCNN_PRAGMA_UNROLL
+				for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+					if ((idx & (1<<dim)) == 0) {
+						weight *= 1 - pos[dim];
+						pos_grid_local[dim] = pos_grid[dim];
+					} else {
+						weight *= pos[dim];
+						pos_grid_local[dim] = pos_grid[dim] + 1;
+					}
+				}
+			}
+			else {
+				TCNN_PRAGMA_UNROLL
+				for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+					if ((idx & (1<<dim)) == 0) {
+						weight *= 0.5;
+						pos_grid_local[dim] = pos_grid[dim];
+					} else {
+						weight *= 0.5;
+						pos_grid_local[dim] = pos_grid[dim] + 1;
+					}
+				}
+			}
 
-	// 		auto val = grid_val(pos_grid_local);
+			auto val = grid_val(pos_grid_local);
 
-	// 		TCNN_PRAGMA_UNROLL
-	// 		for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-	// 			unsigned short data = (unsigned short)((T*)&val)[feature];
-	// 			for (uint32_t bit = 0; bit < 4u; ++bit) {
-    // 				float bit_data = (data & (1 << bit)) ? 1.0f : -1.0f;
-	// 				((T*)&result)[feature * 4u + bit] += (T)(weight * bit_data);
-	// 			}
-	// 		}
-	// 	}
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+				unsigned short data = (unsigned short)((T*)&val)[feature];
+				for (uint32_t bit = 0; bit < 4u; ++bit) {
+    				float bit_data = (data & (1 << bit)) ? 1.0f : -1.0f;
+					((T*)&result)[feature * 4u + bit] += (T)(weight * bit_data);
+				}
+			}
+		}
 
-	// 	TCNN_PRAGMA_UNROLL
-	// 	for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
-	// 		for (uint32_t bit = 0; bit < 4u; ++bit) {
-	// 			encoded_positions[i + (level * (4u * N_FEATURES_PER_LEVEL) + (4u * f + bit)) * num_elements] = result[4u * f + bit];
-	// 		}
-	// 	}
-	// }
+		TCNN_PRAGMA_UNROLL
+		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
+			for (uint32_t bit = 0; bit < 4u; ++bit) {
+				encoded_positions[i + (level * (4u * N_FEATURES_PER_LEVEL) + (4u * f + bit)) * num_elements] = result[4u * f + bit];
+			}
+		}
+	}
 
 	if (dy_dx) {
 		TCNN_PRAGMA_UNROLL
