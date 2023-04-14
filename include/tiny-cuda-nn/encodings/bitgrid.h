@@ -36,7 +36,7 @@
 #include <tiny-cuda-nn/gpu_memory.h>
 #include <tiny-cuda-nn/multi_stream.h>
 #include <tiny-cuda-nn/random.h>
-#include <tiny-cuda-nn/grid.h>
+#include <tiny-cuda-nn/encodings/grid.h>
 
 #include <stdexcept>
 #include <stdint.h>
