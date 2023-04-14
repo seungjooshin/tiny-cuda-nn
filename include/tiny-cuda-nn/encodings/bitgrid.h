@@ -22,7 +22,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @file   grid.h
+/** @file   bitgrid.h
  *  @author Thomas Müller, NVIDIA & Alex Evans, NVIDIA & Jianfei Guo, Shanghai AI Lab
  *  @brief  Trainable hierarchy of N-D grids of floating point values.
  *          The grids can be backed by dense memory, tiled memory, or by hash tables.
@@ -46,7 +46,7 @@
 
 TCNN_NAMESPACE_BEGIN
 
-static constexpr uint32_t MAX_N_LEVELS = 128;
+// static constexpr uint32_t MAX_N_LEVELS = 128;
 // struct GridOffsetTable {
 // 	uint32_t data[MAX_N_LEVELS+1] = {};
 // 	uint32_t size = 0;
