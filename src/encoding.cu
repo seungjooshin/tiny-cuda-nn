@@ -149,13 +149,13 @@ void register_builtin_encodings() {
 	register_encoding<T>("TiledGrid", grid_factory);
 	register_encoding<T>("DenseGrid", grid_factory);
 
-	// auto bitgrid_factory = [](uint32_t n_dims_to_encode, const json& encoding) {
-	// 	return create_bitgrid_encoding<T>(n_dims_to_encode, encoding);
-	// };
-	// register_encoding<T>("BitGrid", bitgrid_factory);
-	// register_encoding<T>("BitHashGrid", bitgrid_factory);
-	// register_encoding<T>("BitTiledGrid", bitgrid_factory);
-	// register_encoding<T>("BitDenseGrid", bitgrid_factory);
+	auto bitgrid_factory = [](uint32_t n_dims_to_encode, const json& encoding) {
+		return create_bitgrid_encoding<T>(n_dims_to_encode, encoding);
+	};
+	register_encoding<T>("BitGrid", bitgrid_factory);
+	register_encoding<T>("BitHashGrid", bitgrid_factory);
+	register_encoding<T>("BitTiledGrid", bitgrid_factory);
+	register_encoding<T>("BitDenseGrid", bitgrid_factory);
 }
 
 template <typename T>

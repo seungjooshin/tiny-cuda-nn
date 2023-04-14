@@ -146,13 +146,6 @@ __global__ void kernel_bitgrid(
 		return;
 	}
 
-    if (encoded_positions) {
-		TCNN_PRAGMA_UNROLL
-		for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
-			encoded_positions[i + (level * 4u * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
-		}
-	}
-
 	if (encoded_positions) {
 		// N-linear interpolation
 		vector_t<T, N_FEATURES_PER_LEVEL * 4u> result = {};
