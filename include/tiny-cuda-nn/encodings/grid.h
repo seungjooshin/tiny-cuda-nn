@@ -846,7 +846,7 @@ __global__ void kernel_grid_backward_input_backward_input(
 	MatrixView<const float> dL_ddLdx,
 	MatrixView<const float> positions_in,
 	const T* __restrict__ dL_dy,
-	const T* __restrict__ grid,
+	const auto* __restrict__ grid,
 	// outputs
 	MatrixView<float> dL_dx
 ) {
