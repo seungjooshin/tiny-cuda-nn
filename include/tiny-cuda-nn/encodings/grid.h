@@ -1175,9 +1175,11 @@ public:
 
 		m_n_params = m_offset_table.data[m_n_levels] * N_FEATURES_PER_LEVEL;
 
-		m_n_output_dims = m_n_features;
 		if (interpolation_type == InterpolationType::BinaryLinear or interpolation_type == InterpolationType::BinaryLinearApprox) {
-			m_n_output_dims = m_n_output_dims * 4;
+			m_n_output_dims = m_n_features * 4;
+		}
+		else {
+			m_n_output_dims = m_n_features;
 		}
 
 		if (n_features % N_FEATURES_PER_LEVEL != 0) {
