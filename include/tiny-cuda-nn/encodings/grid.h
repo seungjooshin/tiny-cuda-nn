@@ -229,7 +229,7 @@ __global__ void kernel_grid(
 	const float* __restrict__ max_level_gpu,
 	const InterpolationType interpolation_type,
 	const GridType grid_type,
-	const auto* __restrict__ grid,
+	const auto* grid,
 	MatrixView<const float> positions_in,
 	T* __restrict__ encoded_positions,
 	float* __restrict__ dy_dx
@@ -846,7 +846,7 @@ __global__ void kernel_grid_backward_input_backward_input(
 	MatrixView<const float> dL_ddLdx,
 	MatrixView<const float> positions_in,
 	const T* __restrict__ dL_dy,
-	const auto* __restrict__ grid,
+	const auto* grid,
 	// outputs
 	MatrixView<float> dL_dx
 ) {
