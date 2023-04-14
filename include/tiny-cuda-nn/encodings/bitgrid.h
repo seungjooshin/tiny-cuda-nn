@@ -47,10 +47,10 @@
 TCNN_NAMESPACE_BEGIN
 
 static constexpr uint32_t MAX_N_LEVELS = 128;
-struct GridOffsetTable {
-	uint32_t data[MAX_N_LEVELS+1] = {};
-	uint32_t size = 0;
-};
+// struct GridOffsetTable {
+// 	uint32_t data[MAX_N_LEVELS+1] = {};
+// 	uint32_t size = 0;
+// };
 
 template <typename T, uint32_t N_POS_DIMS, uint32_t N_FEATURES_PER_LEVEL, HashType HASH_TYPE>
 __global__ void kernel_bitgrid(
