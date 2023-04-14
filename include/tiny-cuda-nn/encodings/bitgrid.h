@@ -42,7 +42,6 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include <type_traits>
 
 TCNN_NAMESPACE_BEGIN
 
@@ -150,7 +149,7 @@ __global__ void kernel_bitgrid(
     if (encoded_positions) {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
-			encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
+			encoded_positions[i + (level * 4u * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
 		}
 	}
 
