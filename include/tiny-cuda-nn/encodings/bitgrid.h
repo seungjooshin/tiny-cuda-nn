@@ -36,6 +36,7 @@
 #include <tiny-cuda-nn/gpu_memory.h>
 #include <tiny-cuda-nn/multi_stream.h>
 #include <tiny-cuda-nn/random.h>
+#include <tiny-cuda-nn/grid.h>
 
 #include <stdexcept>
 #include <stdint.h>
@@ -51,175 +52,8 @@ struct GridOffsetTable {
 	uint32_t size = 0;
 };
 
-enum class GridType {
-	Hash,
-	Dense,
-	Tiled,
-};
-
-inline GridType string_to_grid_type(const std::string& grid_type) {
-	if (equals_case_insensitive(grid_type, "Hash")) {
-		return GridType::Hash;
-	} else if (equals_case_insensitive(grid_type, "Dense")) {
-		return GridType::Dense;
-	} else if (equals_case_insensitive(grid_type, "Tiled") || equals_case_insensitive(grid_type, "Tile")) {
-		return GridType::Tiled;
-	}
-
-	throw std::runtime_error{fmt::format("Invalid grid type: {}", grid_type)};
-}
-
-inline std::string to_string(GridType grid_type) {
-	switch (grid_type) {
-		case GridType::Hash: return "Hash";
-		case GridType::Dense: return "Dense";
-		case GridType::Tiled: return "Tiled";
-		default: throw std::runtime_error{"Invalid grid type."};
-	}
-}
-
-enum class HashType {
-	Prime,
-	CoherentPrime,
-	ReversedPrime,
-	Rng,
-};
-
-inline HashType string_to_hash_type(const std::string& hash_type) {
-	if (equals_case_insensitive(hash_type, "Prime")) {
-		return HashType::Prime;
-	} else if (equals_case_insensitive(hash_type, "CoherentPrime")) {
-		return HashType::CoherentPrime;
-	} else if (equals_case_insensitive(hash_type, "ReversedPrime")) {
-		return HashType::ReversedPrime;
-	} else if (equals_case_insensitive(hash_type, "Rng")) {
-		return HashType::Rng;
-	}
-
-	throw std::runtime_error{fmt::format("Invalid hash type: {}", hash_type)};
-}
-
-inline std::string to_string(HashType hash_type) {
-	switch (hash_type) {
-		case HashType::Prime: return "Prime";
-		case HashType::CoherentPrime: return "CoherentPrime";
-		case HashType::ReversedPrime: return "ReversedPrime";
-		case HashType::Rng: return "Rng";
-		default: throw std::runtime_error{"Invalid hash type."};
-	}
-}
-
-template <uint32_t N_DIMS, uint32_t N_PRIMES>
-__device__ uint32_t lcg_hash(const uint32_t pos_grid[N_DIMS], const uint32_t primes[N_PRIMES]) {
-	static_assert(N_DIMS <= N_PRIMES, "lcg_hash can only hash up to N_PRIMES dimensions.");
-
-	uint32_t result = 0;
-
-	TCNN_PRAGMA_UNROLL
-	for (uint32_t i = 0; i < N_DIMS; ++i) {
-		result ^= pos_grid[i] * primes[i];
-	}
-
-	return result;
-}
-
-template <uint32_t N_DIMS>
-__device__ uint32_t prime_hash(const uint32_t pos_grid[N_DIMS]) {
-	constexpr uint32_t factors[7] = { 1958374283u, 2654435761u, 805459861u, 3674653429u, 2097192037u, 1434869437u, 2165219737u };
-	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
-}
-
-template <uint32_t N_DIMS>
-__device__ uint32_t coherent_prime_hash(const uint32_t pos_grid[N_DIMS]) {
-	constexpr uint32_t factors[7] = { 1u, 2654435761u, 805459861u, 3674653429u, 2097192037u, 1434869437u, 2165219737u };
-	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
-}
-
-template <uint32_t N_DIMS>
-__device__ uint32_t reversed_prime_hash(const uint32_t pos_grid[N_DIMS]) {
-	constexpr uint32_t factors[7] = { 2165219737u, 1434869437u, 2097192037u, 3674653429u, 805459861u, 2654435761u, 1958374283u };
-	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
-}
-
-template <uint32_t N_DIMS>
-__device__ uint32_t rng_hash(const uint32_t pos_grid[N_DIMS], const uint32_t seed = 1337) {
-	constexpr uint32_t N_BITS_PER_DIM = 64 / N_DIMS;
-	uint64_t step = 0;
-
-	TCNN_PRAGMA_UNROLL
-	for (uint32_t i = 0; i < N_DIMS; ++i) {
-		step ^= (uint64_t)pos_grid[i] << (i * N_BITS_PER_DIM);
-	}
-
-	pcg32 rng{seed};
-	rng.advance((int64_t)step);
-	return rng.next_uint();
-}
-
-template <uint32_t N_DIMS, HashType HASH_TYPE>
-__device__ uint32_t grid_hash(const uint32_t pos_grid[N_DIMS]) {
-	switch (HASH_TYPE) {
-		case HashType::Prime: return prime_hash<N_DIMS>(pos_grid);
-		case HashType::CoherentPrime: return coherent_prime_hash<N_DIMS>(pos_grid);
-		case HashType::ReversedPrime: return reversed_prime_hash<N_DIMS>(pos_grid);
-		case HashType::Rng: return rng_hash<N_DIMS>(pos_grid);
-	}
-
-	return 0;
-}
-
-template <uint32_t N_DIMS, HashType HASH_TYPE>
-__device__ uint32_t grid_index(const GridType grid_type, const uint32_t hashmap_size, const uint32_t grid_resolution, const uint32_t pos_grid[N_DIMS]) {
-	uint32_t stride = 1;
-	uint32_t index = 0;
-
-	// The second part of the loop condition is needed to avoid integer overflows in finer levels.
-	TCNN_PRAGMA_UNROLL
-	for (uint32_t dim = 0; dim < N_DIMS && stride <= hashmap_size; ++dim) {
-		index += pos_grid[dim] * stride;
-		stride *= grid_resolution;
-	}
-
-	if (grid_type == GridType::Hash && hashmap_size < stride) {
-		index = grid_hash<N_DIMS, HASH_TYPE>(pos_grid);
-	}
-
-	return index % hashmap_size;
-}
-
-__device__ inline float random_val(uint32_t seed, uint32_t idx) {
-	pcg32 rng{seed};
-	rng.advance(idx);
-	return rng.next_float();
-}
-
-__host__ __device__ inline float grid_scale(uint32_t level, float log2_per_level_scale, uint32_t base_resolution) {
-	// The -1 means that `base_resolution` refers to the number of grid _vertices_ rather
-	// than the number of cells. This is slightly different from the notation in the paper,
-	// but results in nice, power-of-2-scaled parameter grids that fit better into cache lines.
-	return exp2f(level * log2_per_level_scale) * base_resolution - 1.0f;
-}
-
-__host__ __device__ inline uint32_t grid_resolution(float scale) {
-	return (uint32_t)ceilf(scale) + 1;
-}
-
-template <typename T>
-__global__ void extract_position(
-	const uint32_t num_elements,
-	PitchedPtr<const float> data_in,
-	T* __restrict__ output
-) {
-	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
-	if (i >= num_elements) return;
-
-	const uint32_t dim_idx = threadIdx.y;
-
-	output[i + dim_idx * num_elements] = (T)data_in(i)[dim_idx];
-}
-
 template <typename T, uint32_t N_POS_DIMS, uint32_t N_FEATURES_PER_LEVEL, HashType HASH_TYPE>
-__global__ void kernel_grid(
+__global__ void kernel_bitgrid(
 	const uint32_t num_elements,
 	const uint32_t num_grid_features,
 	const GridOffsetTable offset_table,
@@ -374,7 +208,7 @@ __global__ void kernel_grid(
 }
 
 template <typename T, typename GRAD_T, uint32_t N_POS_DIMS, uint32_t N_FEATURES_PER_LEVEL, uint32_t N_FEATURES_PER_THREAD, HashType HASH_TYPE>
-__global__ void kernel_grid_backward(
+__global__ void kernel_bitgrid_backward(
 	const uint32_t num_elements,
 	const uint32_t num_grid_features,
 	const GridOffsetTable offset_table,
@@ -390,108 +224,78 @@ __global__ void kernel_grid_backward(
 	const T* __restrict__ dL_dy
 ) {
     return;
-// 	const uint32_t i = ((blockIdx.x * blockDim.x + threadIdx.x) * N_FEATURES_PER_THREAD) / N_FEATURES_PER_LEVEL;
-// 	if (i >= num_elements) return;
+	const uint32_t i = ((blockIdx.x * blockDim.x + threadIdx.x) * N_FEATURES_PER_THREAD) / N_FEATURES_PER_LEVEL;
+	if (i >= num_elements) return;
 
-// 	const uint32_t level = blockIdx.y ; // <- the level is the same for all threads.
-// 	const uint32_t feature = (blockIdx.x * blockDim.x + threadIdx.x) * N_FEATURES_PER_THREAD - i * N_FEATURES_PER_LEVEL;
+	const uint32_t level = blockIdx.y ; // <- the level is the same for all threads.
+	const uint32_t feature = (blockIdx.x * blockDim.x + threadIdx.x) * N_FEATURES_PER_THREAD - i * N_FEATURES_PER_LEVEL;
 
-// 	if (max_level_gpu) {
-// 		max_level = (max_level_gpu[i] * num_grid_features) / N_FEATURES_PER_LEVEL;
-// 	} else {
-// 		max_level = (max_level * num_grid_features) / N_FEATURES_PER_LEVEL;
-// 	}
+	if (max_level_gpu) {
+		max_level = (max_level_gpu[i] * num_grid_features) / N_FEATURES_PER_LEVEL;
+	} else {
+		max_level = (max_level * num_grid_features) / N_FEATURES_PER_LEVEL;
+	}
 
-// 	if (level > max_level + 1e-3f) {
-// 		return;
-// 	}
+	if (level > max_level + 1e-3f) {
+		return;
+	}
 
-// 	grid_gradient += offset_table.data[level] * N_FEATURES_PER_LEVEL;
-// 	const uint32_t hashmap_size = offset_table.data[level + 1] - offset_table.data[level];
+	grid_gradient += offset_table.data[level] * N_FEATURES_PER_LEVEL;
+	const uint32_t hashmap_size = offset_table.data[level + 1] - offset_table.data[level];
 
-// 	const float scale = grid_scale(level, log2_per_level_scale, base_resolution);
-// 	const uint32_t resolution = grid_resolution(scale);
+	const float scale = grid_scale(level, log2_per_level_scale, base_resolution);
+	const uint32_t resolution = grid_resolution(scale);
 
-// 	auto add_grid_gradient = [&](const uint32_t local_pos[N_POS_DIMS], const vector_t<T, N_FEATURES_PER_THREAD>& grad, const float weight) {
-// 		uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL + feature;
-// #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600 // atomicAdd(__half2) is only supported with compute capability 60 and above
-// 		if (N_FEATURES_PER_THREAD > 1 && std::is_same<GRAD_T, __half>::value) {
-// 			for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; f += 2) {
-// 				__half2 v = {(__half)((float)grad[f] * weight), (__half)((float)grad[f+1] * weight)};
-// 				atomicAdd((__half2*)&grid_gradient[index + f], v);
-// 			}
-// 		} else
-// #endif
-// 		{
-// 			if (std::is_same<GRAD_T, __half>::value) {
-// 				// Should never happen
-// 				//printf("Attempted to use atomicAdd(__half)\n")
-// 			} else {
-// 				for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
-// 					atomicAdd((float*)&grid_gradient[index + f], (float)grad[f] * weight);
-// 				}
-// 			}
-// 		}
-// 	};
+	auto add_grid_gradient = [&](const uint32_t local_pos[N_POS_DIMS], const vector_t<T, N_FEATURES_PER_THREAD>& grad, const float weight) {
+		uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL + feature;
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600 // atomicAdd(__half2) is only supported with compute capability 60 and above
+		if (N_FEATURES_PER_THREAD > 1 && std::is_same<GRAD_T, __half>::value) {
+			for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; f += 2) {
+				__half2 v = {(__half)((float)grad[f] * weight), (__half)((float)grad[f+1] * weight)};
+				atomicAdd((__half2*)&grid_gradient[index + f], v);
+			}
+		} else
+#endif
+		{
+			if (std::is_same<GRAD_T, __half>::value) {
+				// Should never happen
+				//printf("Attempted to use atomicAdd(__half)\n")
+			} else {
+				for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
+					atomicAdd((float*)&grid_gradient[index + f], (float)grad[f] * weight);
+				}
+			}
+		}
+	};
 
-// 	float pos[N_POS_DIMS];
-// 	uint32_t pos_grid[N_POS_DIMS];
+	float pos[N_POS_DIMS];
+	uint32_t pos_grid[N_POS_DIMS];
 
-// 	if (interpolation_type == InterpolationType::Smoothstep) {
-// 		TCNN_PRAGMA_UNROLL
-// 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-// 			pos_fract(positions_in(dim, i), &pos[dim], &pos_grid[dim], scale, smoothstep);
-// 		}
-// 	} else {
-// 		TCNN_PRAGMA_UNROLL
-// 		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
-// 			pos_fract(positions_in(dim, i), &pos[dim], &pos_grid[dim], scale, identity_fun);
-// 		}
-// 	}
+	if (interpolation_type == InterpolationType::Smoothstep) {
+		TCNN_PRAGMA_UNROLL
+		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+			pos_fract(positions_in(dim, i), &pos[dim], &pos_grid[dim], scale, smoothstep);
+		}
+	} else {
+		TCNN_PRAGMA_UNROLL
+		for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+			pos_fract(positions_in(dim, i), &pos[dim], &pos_grid[dim], scale, identity_fun);
+		}
+	}
 
-// 	vector_t<T, N_FEATURES_PER_THREAD> grad;
+	vector_t<T, N_FEATURES_PER_THREAD> grad;
 
-// 	TCNN_PRAGMA_UNROLL
-// 	for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
-// 		grad[f] = dL_dy[i + (level * N_FEATURES_PER_LEVEL + feature + f) * num_elements];
-// 	}
+	TCNN_PRAGMA_UNROLL
+	for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
+		grad[f] = dL_dy[i + (level * N_FEATURES_PER_LEVEL + feature + f) * num_elements];
+	}
 
-// 	add_grid_gradient(pos_grid, grad, 1.0f);
-// 	return;
-}
-
-template <typename T>
-__global__ void transpose_encoded_position(
-	const uint32_t n_elements,
-	const T* __restrict__ encoded_positions,
-	PitchedPtr<T> output
-) {
-	const uint32_t i = threadIdx.y + blockIdx.x * blockDim.y;
-	if (i >= n_elements) return;
-
-	const uint32_t elem_idx = i;
-	const uint32_t dim_idx = threadIdx.x;
-
-	output(elem_idx)[dim_idx] = encoded_positions[elem_idx + n_elements * dim_idx];
-}
-
-template <typename T>
-__global__ void transpose_gradients(
-	const uint32_t n_elements,
-	T* __restrict__ transposed_dL_dy,
-	PitchedPtr<const T> dL_dy
-) {
-	const uint32_t i = threadIdx.y + blockIdx.x * blockDim.y;
-	if (i >= n_elements) return;
-
-	const uint32_t elem_idx = i;
-	const uint32_t dim_idx = threadIdx.x;
-
-	transposed_dL_dy[elem_idx + n_elements * dim_idx] = dL_dy(elem_idx)[dim_idx];
+	add_grid_gradient(pos_grid, grad, 1.0f);
+	return;
 }
 
 template <typename T, uint32_t N_POS_DIMS>
-__global__ void kernel_grid_backward_input(
+__global__ void kernel_bitgrid_backward_input(
 	const uint32_t num_elements,
 	const uint32_t num_grid_features,
 	const T* dL_dy_rm,
@@ -520,7 +324,7 @@ __global__ void kernel_grid_backward_input(
 }
 
 template <typename T>
-class GridEncoding : public Encoding<T> {
+class BitGridEncoding : public Encoding<T> {
 public:
 	virtual uint32_t n_pos_dims() const = 0;
 	virtual uint32_t n_features_per_level() const = 0;
@@ -565,7 +369,7 @@ protected:
 };
 
 template <typename T, uint32_t N_POS_DIMS=3, uint32_t N_FEATURES_PER_LEVEL=2, HashType HASH_TYPE=HashType::CoherentPrime>
-class GridEncodingTemplated : public GridEncoding<T> {
+class BitGridEncodingTemplated : public BitGridEncoding<T> {
 public:
 #if TCNN_MIN_GPU_ARCH >= 62 || TCNN_MIN_GPU_ARCH == 60
 	// The GPUs that we tested this on do not have an efficient 1D fp16
@@ -580,7 +384,7 @@ public:
 	using grad_t = float;
 #endif
 
-	GridEncodingTemplated(
+	BitGridEncodingTemplated(
 		uint32_t n_features,
 		uint32_t log2_hashmap_size,
 		uint32_t base_resolution,
@@ -693,7 +497,7 @@ public:
 			forward->dy_dx = GPUMatrix<float, RM>{N_POS_DIMS * m_n_features, input.n(), stream};
 		}
 
-		kernel_grid<T, N_POS_DIMS, N_FEATURES_PER_LEVEL, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, synced_streams.get(0)>>>(
+		kernel_bitgrid<T, N_POS_DIMS, N_FEATURES_PER_LEVEL, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, synced_streams.get(0)>>>(
 			num_elements,
 			m_n_features,
 			m_offset_table,
@@ -781,7 +585,7 @@ public:
 
 			const dim3 blocks_hashgrid = { div_round_up(num_elements * N_FEATURES_PER_LEVEL / N_FEATURES_PER_THREAD, N_THREADS_HASHGRID), m_n_levels, 1 };
 
-			kernel_grid_backward<T, grad_t, N_POS_DIMS, N_FEATURES_PER_LEVEL, N_FEATURES_PER_THREAD, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, stream>>>(
+			kernel_bitgrid_backward<T, grad_t, N_POS_DIMS, N_FEATURES_PER_LEVEL, N_FEATURES_PER_THREAD, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, stream>>>(
 				num_elements,
 				m_n_features,
 				m_offset_table,
@@ -808,7 +612,7 @@ public:
 			return;
 		}
 
-		linear_kernel(kernel_grid_backward_input<T, N_POS_DIMS>, 0, stream,
+		linear_kernel(kernel_bitgrid_backward_input<T, N_POS_DIMS>, 0, stream,
 			num_elements,
 			m_n_features,
 			dL_dy_rm,
@@ -929,7 +733,7 @@ private:
 };
 
 template <typename T, uint32_t N_FEATURES_PER_LEVEL, HashType HASH_TYPE>
-GridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encode, const json& encoding) {
+BitGridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encode, const json& encoding) {
 	const uint32_t log2_hashmap_size = encoding.value("log2_hashmap_size", 19u);
 	const std::string encoding_type = encoding.value("otype", "Grid");
 	const std::string default_type = equals_case_insensitive(encoding_type, "BitTiledGrid") ? "Tiled" : (equals_case_insensitive(encoding_type, "BitDenseGrid") ? "Dense" : "Hash");
@@ -938,7 +742,7 @@ GridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encode, 
 	if (encoding.contains("n_features") || encoding.contains("n_grid_features")) {
 		n_features = encoding.contains("n_features") ? encoding["n_features"] : encoding["n_grid_features"];
 		if (encoding.contains("n_levels")) {
-			throw std::runtime_error{"GridEncoding: may not specify n_features and n_levels simultaneously (one determines the other)"};
+			throw std::runtime_error{"BitGridEncoding: may not specify n_features and n_levels simultaneously (one determines the other)"};
 		}
 	} else {
 		n_features = 4u * N_FEATURES_PER_LEVEL * encoding.value("n_levels", 16u);
@@ -955,39 +759,39 @@ GridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encode, 
 
 	// If higher-dimensional hash encodings are desired, corresponding switch cases can be added
 	switch (n_dims_to_encode) {
-		case 1: return new GridEncodingTemplated<T, 1, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		case 2: return new GridEncodingTemplated<T, 2, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		case 3: return new GridEncodingTemplated<T, 3, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		case 4: return new GridEncodingTemplated<T, 4, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		// case 5: return new GridEncodingTemplated<T, 5, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		// case 6: return new GridEncodingTemplated<T, 6, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		// case 7: return new GridEncodingTemplated<T, 7, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		default: throw std::runtime_error{"GridEncoding: number of input dims must be 1, 2, 3 or 4."};
+		case 1: return new BitGridEncodingTemplated<T, 1, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		case 2: return new BitGridEncodingTemplated<T, 2, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		case 3: return new BitGridEncodingTemplated<T, 3, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		case 4: return new BitGridEncodingTemplated<T, 4, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		// case 5: return new BitGridEncodingTemplated<T, 5, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		// case 6: return new BitGridEncodingTemplated<T, 6, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		// case 7: return new BitGridEncodingTemplated<T, 7, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		default: throw std::runtime_error{"BitGridEncoding: number of input dims must be 1, 2, 3 or 4."};
 	}
 #undef TCNN_GRID_PARAMS
 }
 
 template <typename T, HashType HASH_TYPE>
-GridEncoding<T>* create_bitgrid_encoding_templated_1(uint32_t n_dims_to_encode, const json& encoding) {
+BitGridEncoding<T>* create_bitgrid_encoding_templated_1(uint32_t n_dims_to_encode, const json& encoding) {
 	const uint32_t n_features_per_level = encoding.value("n_features_per_level", 2u);
 	switch (n_features_per_level) {
 		case 1: return create_bitgrid_encoding_templated_2<T, 1, HASH_TYPE>(n_dims_to_encode, encoding);
 		case 2: return create_bitgrid_encoding_templated_2<T, 2, HASH_TYPE>(n_dims_to_encode, encoding);
 		case 4: return create_bitgrid_encoding_templated_2<T, 4, HASH_TYPE>(n_dims_to_encode, encoding);
 		case 8: return create_bitgrid_encoding_templated_2<T, 8, HASH_TYPE>(n_dims_to_encode, encoding);
-		default: throw std::runtime_error{"GridEncoding: n_features_per_level must be 1, 2, 4, or 8."};
+		default: throw std::runtime_error{"BitGridEncoding: n_features_per_level must be 1, 2, 4, or 8."};
 	}
 }
 
 template <typename T>
-GridEncoding<T>* create_bitgrid_encoding(uint32_t n_dims_to_encode, const json& encoding) {
+BitGridEncoding<T>* create_bitgrid_encoding(uint32_t n_dims_to_encode, const json& encoding) {
 	const HashType hash_type = string_to_hash_type(encoding.value("hash", "CoherentPrime"));
 	switch (hash_type) {
 		case HashType::Prime: return create_bitgrid_encoding_templated_1<T, HashType::Prime>(n_dims_to_encode, encoding);
 		case HashType::CoherentPrime: return create_bitgrid_encoding_templated_1<T, HashType::CoherentPrime>(n_dims_to_encode, encoding);
 		case HashType::ReversedPrime: return create_bitgrid_encoding_templated_1<T, HashType::ReversedPrime>(n_dims_to_encode, encoding);
 		case HashType::Rng: return create_bitgrid_encoding_templated_1<T, HashType::Rng>(n_dims_to_encode, encoding);
-		default: throw std::runtime_error{"GridEncoding: invalid hash type."};
+		default: throw std::runtime_error{"BitGridEncoding: invalid hash type."};
 	}
 }
 
