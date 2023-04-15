@@ -185,7 +185,7 @@ __global__ void kernel_bitgrid(
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 				unsigned short data = (unsigned short)((T*)&val)[feature];
-				if (fabsf(data) < quantize_threshold) data = 0.f;
+				if (fabsf(data) < quantize_threshold) data = 0u;
 				for (uint32_t bit = 0; bit < 4u; ++bit) {
     				float bit_data = (data & (1u << bit)) ? 1.0f : -1.0f;
 					((T*)&result)[4u * feature + bit] += (T)(weight * bit_data);
