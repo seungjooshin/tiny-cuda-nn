@@ -51,7 +51,7 @@ TCNN_NAMESPACE_BEGIN
 // 	uint32_t size = 0;
 // };
 
-template <typename T, uint32_t N_POS_DIMS, uint32_t N_FEATURES_PER_LEVEL, HashType HASH_TYPE>
+template <typename T, uint32_t N_POS_DIMS, uint32_t N_FEATURES_PER_LEVEL, uint32_t N_OUTPUT_FEATURES_PER_LEVEL, HashType HASH_TYPE>
 __global__ void kernel_bitgrid(
 	const uint32_t num_elements,
 	const uint32_t num_grid_features,
@@ -130,7 +130,7 @@ __global__ void kernel_bitgrid(
 
 		if (encoded_positions) {
 			TCNN_PRAGMA_UNROLL
-			for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
+			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL * N_OUTPUT_FEATURES_PER_LEVEL; ++f) {
 				encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
 			}
 		}
@@ -138,7 +138,7 @@ __global__ void kernel_bitgrid(
 		// Gradient is zero when there's no interpolation.
 		if (dy_dx) {
 			TCNN_PRAGMA_UNROLL
-			for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
+			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL * N_OUTPUT_FEATURES_PER_LEVEL; ++f) {
 				((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = {0};
 			}
 		}
@@ -148,7 +148,7 @@ __global__ void kernel_bitgrid(
 
 	if (encoded_positions) {
 		// N-linear interpolation
-		vector_t<T, N_FEATURES_PER_LEVEL * 4u> result = {};
+		vector_t<T, N_FEATURES_PER_LEVEL * N_OUTPUT_FEATURES_PER_LEVEL> result = {};
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t idx = 0; idx < (1 << N_POS_DIMS); ++idx) {
@@ -185,23 +185,23 @@ __global__ void kernel_bitgrid(
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 				unsigned short data = (unsigned short)((T*)&val)[feature];
-				for (uint32_t bit = 0; bit < 4u; ++bit) {
+				for (uint32_t bit = 0; bit < N_OUTPUT_FEATURES_PER_LEVEL; ++bit) {
     				float bit_data = (data & (1u << bit)) ? 1.0f : -1.0f;
-					((T*)&result)[4u * feature + bit] += (T)(weight * bit_data);
+					((T*)&result)[N_OUTPUT_FEATURES_PER_LEVEL * feature + bit] += (T)(weight * bit_data);
 				}
 			}
 		}
 
 		TCNN_PRAGMA_UNROLL
-		for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
-			encoded_positions[i + (level * 4u * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
+		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL * N_OUTPUT_FEATURES_PER_LEVEL; ++f) {
+			encoded_positions[i + (level * N_FEATURES_PER_LEVEL * N_OUTPUT_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
 		}
 	}
 
 	if (dy_dx) {
 		TCNN_PRAGMA_UNROLL
-		for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
-			((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * 4u * N_FEATURES_PER_LEVEL + f) * num_elements] = {0};
+		for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL * N_OUTPUT_FEATURES_PER_LEVEL; ++f) {
+			((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL * N_OUTPUT_FEATURES_PER_LEVEL + f) * num_elements] = {0};
 		}
 	}
 }
@@ -286,7 +286,7 @@ __global__ void kernel_bitgrid_backward(
 
 	TCNN_PRAGMA_UNROLL
 	for (uint32_t f = 0; f < N_FEATURES_PER_THREAD; ++f) {
-		grad[f] = dL_dy[i + (level * 4u * N_FEATURES_PER_LEVEL + feature + f) * num_elements];
+		grad[f] = dL_dy[i + (level * N_FEATURES_PER_LEVEL + feature + f) * num_elements];
 	}
 
 	add_grid_gradient(pos_grid, grad, 1.0f);
@@ -367,7 +367,7 @@ protected:
 	float m_quantize_threshold = 0.f;
 };
 
-template <typename T, uint32_t N_POS_DIMS=3, uint32_t N_FEATURES_PER_LEVEL=2, HashType HASH_TYPE=HashType::CoherentPrime>
+template <typename T, uint32_t N_POS_DIMS=3, uint32_t N_FEATURES_PER_LEVEL=2, uint32_t N_OUTPUT_FEATURES_PER_LEVEL=4, HashType HASH_TYPE=HashType::CoherentPrime>
 class BitGridEncodingTemplated : public BitGridEncoding<T> {
 public:
 #if TCNN_MIN_GPU_ARCH >= 62 || TCNN_MIN_GPU_ARCH == 60
@@ -400,7 +400,7 @@ public:
 	m_interpolation_type{interpolation_type},
 	m_grid_type{grid_type}
 	{
-		m_n_levels = div_round_up(m_n_features, 4u * N_FEATURES_PER_LEVEL);
+		m_n_levels = div_round_up(m_n_features, N_FEATURES_PER_LEVEL * N_OUTPUT_FEATURES_PER_LEVEL);
 		uint32_t offset = 0;
 
 		if (m_n_levels > MAX_N_LEVELS) {
@@ -496,7 +496,7 @@ public:
 		// 	forward->dy_dx = GPUMatrix<float, RM>{N_POS_DIMS * m_n_features, input.n(), stream};
 		// }
 
-		kernel_bitgrid<T, N_POS_DIMS, N_FEATURES_PER_LEVEL, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, synced_streams.get(0)>>>(
+		kernel_bitgrid<T, N_POS_DIMS, N_FEATURES_PER_LEVEL, N_OUTPUT_FEATURES_PER_LEVEL, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, synced_streams.get(0)>>>(
 			num_elements,
 			m_n_features,
 			m_offset_table,
@@ -515,7 +515,7 @@ public:
 
 		if (output && output->layout() == AoS) {
 			// Transpose result (was stored row major due to coalescing)
-			const dim3 threads_transpose = { m_n_levels * 4u * N_FEATURES_PER_LEVEL, 8, 1 };
+			const dim3 threads_transpose = { m_n_levels * N_FEATURES_PER_LEVEL * N_OUTPUT_FEATURES_PER_LEVEL, 8, 1 };
 			const uint32_t blocks_transpose = div_round_up(num_elements, threads_transpose.y);
 			transpose_encoded_position<T><<<blocks_transpose, threads_transpose, 0, synced_streams.get(0)>>>(
 				num_elements,
@@ -732,8 +732,8 @@ private:
 	GridType m_grid_type;
 };
 
-template <typename T, uint32_t N_FEATURES_PER_LEVEL, HashType HASH_TYPE>
-BitGridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encode, const json& encoding) {
+template <typename T, uint32_t N_FEATURES_PER_LEVEL, uint32_t N_OUTPUT_FEATURES_PER_LEVEL, HashType HASH_TYPE>
+BitGridEncoding<T>* create_bitgrid_encoding_templated_3(uint32_t n_dims_to_encode, const json& encoding) {
 	const uint32_t log2_hashmap_size = encoding.value("log2_hashmap_size", 19u);
 	const std::string encoding_type = encoding.value("otype", "Grid");
 	const std::string default_type = equals_case_insensitive(encoding_type, "BitTiledGrid") ? "Tiled" : (equals_case_insensitive(encoding_type, "BitDenseGrid") ? "Dense" : "Hash");
@@ -745,7 +745,7 @@ BitGridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encod
 			throw std::runtime_error{"BitGridEncoding: may not specify n_features and n_levels simultaneously (one determines the other)"};
 		}
 	} else {
-		n_features = 4u * N_FEATURES_PER_LEVEL * encoding.value("n_levels", 16u);
+		n_features = N_FEATURES_PER_LEVEL * N_OUTPUT_FEATURES_PER_LEVEL * encoding.value("n_levels", 16u);
 	}
 
 #define TCNN_GRID_PARAMS \
@@ -759,16 +759,29 @@ BitGridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encod
 
 	// If higher-dimensional hash encodings are desired, corresponding switch cases can be added
 	switch (n_dims_to_encode) {
-		case 1: return new BitGridEncodingTemplated<T, 1, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		case 2: return new BitGridEncodingTemplated<T, 2, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		case 3: return new BitGridEncodingTemplated<T, 3, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
-		case 4: return new BitGridEncodingTemplated<T, 4, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		case 1: return new BitGridEncodingTemplated<T, 1, N_FEATURES_PER_LEVEL, N_OUTPUT_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		case 2: return new BitGridEncodingTemplated<T, 2, N_FEATURES_PER_LEVEL, N_OUTPUT_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		case 3: return new BitGridEncodingTemplated<T, 3, N_FEATURES_PER_LEVEL, N_OUTPUT_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		case 4: return new BitGridEncodingTemplated<T, 4, N_FEATURES_PER_LEVEL, N_OUTPUT_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
 		// case 5: return new BitGridEncodingTemplated<T, 5, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
 		// case 6: return new BitGridEncodingTemplated<T, 6, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
 		// case 7: return new BitGridEncodingTemplated<T, 7, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
 		default: throw std::runtime_error{"BitGridEncoding: number of input dims must be 1, 2, 3 or 4."};
 	}
 #undef TCNN_GRID_PARAMS
+}
+
+template <typename T, uint32_t N_FEATURES_PER_LEVEL, HashType HASH_TYPE>
+BitGridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encode, const json& encoding) {
+	const uint32_t n_output_features_per_level = encoding.value("n_output_features_per_level", 4u);
+	switch (n_output_features_per_level) {
+		case 1: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 1, HASH_TYPE>(n_dims_to_encode, encoding);
+		case 2: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 2, HASH_TYPE>(n_dims_to_encode, encoding);
+		case 4: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 4, HASH_TYPE>(n_dims_to_encode, encoding);
+		case 8: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 8, HASH_TYPE>(n_dims_to_encode, encoding);
+		case 16: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 16, HASH_TYPE>(n_dims_to_encode, encoding);
+		default: throw std::runtime_error{"BitGridEncoding: n_output_features_per_level must be 1, 2, 4, 8, or 16."};
+	}
 }
 
 template <typename T, HashType HASH_TYPE>
