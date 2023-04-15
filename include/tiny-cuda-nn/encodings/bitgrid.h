@@ -541,6 +541,7 @@ public:
 		if ((!dL_dinput && param_gradients_mode == EGradientMode::Ignore) || padded_output_width() == 0 || num_elements == 0) {
 			return;
 		}
+		return;
 
 		const auto& forward = dynamic_cast<const ForwardContext&>(ctx);
 
