@@ -492,9 +492,9 @@ public:
 			encoded_positions_soa = (T*)workspace.data();
 		}
 
-		if (prepare_input_gradients) {
-			forward->dy_dx = GPUMatrix<float, RM>{N_POS_DIMS * m_n_features, input.n(), stream};
-		}
+		// if (prepare_input_gradients) {
+		// 	forward->dy_dx = GPUMatrix<float, RM>{N_POS_DIMS * m_n_features, input.n(), stream};
+		// }
 
 		kernel_bitgrid<T, N_POS_DIMS, N_FEATURES_PER_LEVEL, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, synced_streams.get(0)>>>(
 			num_elements,
@@ -537,88 +537,88 @@ public:
 		bool use_inference_params = false,
 		EGradientMode param_gradients_mode = EGradientMode::Ignore
 	) override {
-		const uint32_t num_elements = input.n();
-		if ((!dL_dinput && param_gradients_mode == EGradientMode::Ignore) || padded_output_width() == 0 || num_elements == 0) {
-			return;
-		}
+		// const uint32_t num_elements = input.n();
+		// if ((!dL_dinput && param_gradients_mode == EGradientMode::Ignore) || padded_output_width() == 0 || num_elements == 0) {
+		// 	return;
+		// }
 		return;
 
-		const auto& forward = dynamic_cast<const ForwardContext&>(ctx);
+		// const auto& forward = dynamic_cast<const ForwardContext&>(ctx);
 
-		const T* dL_dy_rm = dL_doutput.data();
+		// const T* dL_dy_rm = dL_doutput.data();
 
-		GPUMemoryArena::Allocation workspace;
-		if (dL_doutput.layout() == CM) {
-			workspace = allocate_workspace(stream, num_elements * m_n_features * sizeof(T));
+		// GPUMemoryArena::Allocation workspace;
+		// if (dL_doutput.layout() == CM) {
+		// 	workspace = allocate_workspace(stream, num_elements * m_n_features * sizeof(T));
 
-			// Transpose dL_dy. Use the buffer previously occupied by the encoded positions
-			const dim3 threads_transpose = { m_n_levels * N_FEATURES_PER_LEVEL, 8, 1 };
-			const uint32_t blocks_transpose = div_round_up(num_elements, threads_transpose.y);
-			transpose_gradients<T><<<blocks_transpose, threads_transpose, 0, stream>>>(
-				num_elements,
-				(T*)workspace.data(),
-				dL_doutput.pitched_ptr()
-			);
+		// 	// Transpose dL_dy. Use the buffer previously occupied by the encoded positions
+		// 	const dim3 threads_transpose = { m_n_levels * N_FEATURES_PER_LEVEL, 8, 1 };
+		// 	const uint32_t blocks_transpose = div_round_up(num_elements, threads_transpose.y);
+		// 	transpose_gradients<T><<<blocks_transpose, threads_transpose, 0, stream>>>(
+		// 		num_elements,
+		// 		(T*)workspace.data(),
+		// 		dL_doutput.pitched_ptr()
+		// 	);
 
-			dL_dy_rm = (const T*)workspace.data();
-		}
+		// 	dL_dy_rm = (const T*)workspace.data();
+		// }
 
-		if (param_gradients_mode != EGradientMode::Ignore) {
-			// We accumulate gradients with grad_t precision, which, for performance reasons, is not always T.
-			// If not, accumulate in a temporary buffer and cast later.
-			grad_t* grid_gradient;
-			GPUMemoryArena::Allocation grid_gradient_tmp;
+		// if (param_gradients_mode != EGradientMode::Ignore) {
+		// 	// We accumulate gradients with grad_t precision, which, for performance reasons, is not always T.
+		// 	// If not, accumulate in a temporary buffer and cast later.
+		// 	grad_t* grid_gradient;
+		// 	GPUMemoryArena::Allocation grid_gradient_tmp;
 
-			if (!std::is_same<grad_t, T>::value) {
-				grid_gradient_tmp = allocate_workspace(stream, m_n_params * sizeof(grad_t));
-				grid_gradient = (grad_t*)grid_gradient_tmp.data();
-			} else {
-				grid_gradient = (grad_t*)this->gradients();
-			}
+		// 	if (!std::is_same<grad_t, T>::value) {
+		// 		grid_gradient_tmp = allocate_workspace(stream, m_n_params * sizeof(grad_t));
+		// 		grid_gradient = (grad_t*)grid_gradient_tmp.data();
+		// 	} else {
+		// 		grid_gradient = (grad_t*)this->gradients();
+		// 	}
 
-			if (param_gradients_mode == EGradientMode::Overwrite) {
-				CUDA_CHECK_THROW(cudaMemsetAsync(grid_gradient, 0, n_params() * sizeof(grad_t), stream));
-			}
+		// 	if (param_gradients_mode == EGradientMode::Overwrite) {
+		// 		CUDA_CHECK_THROW(cudaMemsetAsync(grid_gradient, 0, n_params() * sizeof(grad_t), stream));
+		// 	}
 
-			static constexpr uint32_t N_THREADS_HASHGRID = 256;
-			static constexpr uint32_t N_FEATURES_PER_THREAD = std::min(2u, N_FEATURES_PER_LEVEL);
+		// 	static constexpr uint32_t N_THREADS_HASHGRID = 256;
+		// 	static constexpr uint32_t N_FEATURES_PER_THREAD = std::min(2u, N_FEATURES_PER_LEVEL);
 
-			const dim3 blocks_hashgrid = { div_round_up(num_elements * N_FEATURES_PER_LEVEL / N_FEATURES_PER_THREAD, N_THREADS_HASHGRID), m_n_levels, 1 };
+		// 	const dim3 blocks_hashgrid = { div_round_up(num_elements * N_FEATURES_PER_LEVEL / N_FEATURES_PER_THREAD, N_THREADS_HASHGRID), m_n_levels, 1 };
 
-			kernel_bitgrid_backward<T, grad_t, N_POS_DIMS, N_FEATURES_PER_LEVEL, N_FEATURES_PER_THREAD, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, stream>>>(
-				num_elements,
-				m_n_features,
-				m_offset_table,
-				m_base_resolution,
-				std::log2(m_per_level_scale),
-				this->m_max_level,
-				this->m_max_level_gpu,
-				m_stochastic_interpolation,
-				m_interpolation_type,
-				m_grid_type,
-				grid_gradient,
-				forward.positions.data() ? forward.positions.view() : input.view(), // positions SoA
-				dL_dy_rm // gradients SoA
-			);
+		// 	kernel_bitgrid_backward<T, grad_t, N_POS_DIMS, N_FEATURES_PER_LEVEL, N_FEATURES_PER_THREAD, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, stream>>>(
+		// 		num_elements,
+		// 		m_n_features,
+		// 		m_offset_table,
+		// 		m_base_resolution,
+		// 		std::log2(m_per_level_scale),
+		// 		this->m_max_level,
+		// 		this->m_max_level_gpu,
+		// 		m_stochastic_interpolation,
+		// 		m_interpolation_type,
+		// 		m_grid_type,
+		// 		grid_gradient,
+		// 		forward.positions.data() ? forward.positions.view() : input.view(), // positions SoA
+		// 		dL_dy_rm // gradients SoA
+		// 	);
 
-			if (!std::is_same<grad_t, T>::value) {
-				parallel_for_gpu(stream, n_params(), [grad=this->gradients(), grad_tmp=grid_gradient] __device__ (size_t i) {
-					grad[i] = (T)grad_tmp[i];
-				});
-			}
-		}
+		// 	if (!std::is_same<grad_t, T>::value) {
+		// 		parallel_for_gpu(stream, n_params(), [grad=this->gradients(), grad_tmp=grid_gradient] __device__ (size_t i) {
+		// 			grad[i] = (T)grad_tmp[i];
+		// 		});
+		// 	}
+		// }
 
-		if (!dL_dinput) {
-			return;
-		}
+		// if (!dL_dinput) {
+		// 	return;
+		// }
 
-		linear_kernel(kernel_bitgrid_backward_input<T, N_POS_DIMS>, 0, stream,
-			num_elements,
-			m_n_features,
-			dL_dy_rm,
-			forward.dy_dx.data(),
-			dL_dinput->view()
-		);
+		// linear_kernel(kernel_bitgrid_backward_input<T, N_POS_DIMS>, 0, stream,
+		// 	num_elements,
+		// 	m_n_features,
+		// 	dL_dy_rm,
+		// 	forward.dy_dx.data(),
+		// 	dL_dinput->view()
+		// );
 	}
 
 	uint32_t input_width() const override {
