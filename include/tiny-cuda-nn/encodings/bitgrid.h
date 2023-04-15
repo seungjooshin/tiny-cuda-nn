@@ -535,7 +535,7 @@ public:
 		const GPUMatrixDynamic<T>& dL_doutput,
 		GPUMatrixDynamic<float>* dL_dinput = nullptr,
 		bool use_inference_params = false,
-		EGradientMode param_gradients_mode = EGradientMode::Overwrite
+		EGradientMode param_gradients_mode = EGradientMode::Ignore
 	) override {
 		const uint32_t num_elements = input.n();
 		if ((!dL_dinput && param_gradients_mode == EGradientMode::Ignore) || padded_output_width() == 0 || num_elements == 0) {
