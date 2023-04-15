@@ -185,6 +185,7 @@ __global__ void kernel_bitgrid(
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 				unsigned short data = (unsigned short)((T*)&val)[feature];
+				if (fabsf(data) < quantize_threshold) data = 0.f;
 				for (uint32_t bit = 0; bit < 4u; ++bit) {
     				float bit_data = (data & (1u << bit)) ? 1.0f : -1.0f;
 					((T*)&result)[4u * feature + bit] += (T)(weight * bit_data);
@@ -194,14 +195,14 @@ __global__ void kernel_bitgrid(
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
-				encoded_positions[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
+				encoded_positions[i + (level * 4u * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
 		}
 	}
 
 	if (dy_dx) {
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
-			((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * N_FEATURES_PER_LEVEL + f) * num_elements] = {0};
+			((vector_fullp_t<N_POS_DIMS>*)dy_dx)[i + (level * 4u * N_FEATURES_PER_LEVEL + f) * num_elements] = {0};
 		}
 	}
 }
