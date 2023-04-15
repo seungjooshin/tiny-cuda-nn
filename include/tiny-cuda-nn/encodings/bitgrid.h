@@ -184,7 +184,6 @@ __global__ void kernel_bitgrid(
 
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
-
 				unsigned short data = (fabsf((float)((T*)&val)[feature]) < quantize_threshold) ? (unsigned short)((T*)&val)[feature] : 0u;
 				for (uint32_t bit = 0; bit < 4u; ++bit) {
     				float bit_data = (data & (1u << bit)) ? 1.0f : -1.0f;
@@ -195,7 +194,7 @@ __global__ void kernel_bitgrid(
 
 		TCNN_PRAGMA_UNROLL
 		for (uint32_t f = 0; f < 4u * N_FEATURES_PER_LEVEL; ++f) {
-				encoded_positions[i + (level * 4u * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
+			encoded_positions[i + (level * 4u * N_FEATURES_PER_LEVEL + f) * num_elements] = result[f];
 		}
 	}
 
@@ -516,7 +515,7 @@ public:
 
 		if (output && output->layout() == AoS) {
 			// Transpose result (was stored row major due to coalescing)
-			const dim3 threads_transpose = { m_n_levels * N_FEATURES_PER_LEVEL, 8, 1 };
+			const dim3 threads_transpose = { m_n_levels * 4u * N_FEATURES_PER_LEVEL, 8, 1 };
 			const uint32_t blocks_transpose = div_round_up(num_elements, threads_transpose.y);
 			transpose_encoded_position<T><<<blocks_transpose, threads_transpose, 0, synced_streams.get(0)>>>(
 				num_elements,
