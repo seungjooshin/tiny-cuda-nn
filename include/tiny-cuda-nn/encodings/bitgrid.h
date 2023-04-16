@@ -779,20 +779,6 @@ BitGridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encod
 		case 2: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 2, HASH_TYPE>(n_dims_to_encode, encoding);
 		case 4: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 4, HASH_TYPE>(n_dims_to_encode, encoding);
 		case 8: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 8, HASH_TYPE>(n_dims_to_encode, encoding);
-		case 8: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 12, HASH_TYPE>(n_dims_to_encode, encoding);
-		case 16: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 16, HASH_TYPE>(n_dims_to_encode, encoding);
-		default: throw std::runtime_error{"BitGridEncoding: n_output_features_per_level must be 1, 2, 4, 8, or 16."};
-	}
-}
-
-template <typename T, uint32_t N_FEATURES_PER_LEVEL, HashType HASH_TYPE>
-BitGridEncoding<T>* create_bitgrid_encoding_templated_2(uint32_t n_dims_to_encode, const json& encoding) {
-	const uint32_t n_output_features_per_level = encoding.value("n_output_features_per_level", 4u);
-	switch (n_output_features_per_level) {
-		case 1: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 1, HASH_TYPE>(n_dims_to_encode, encoding);
-		case 2: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 2, HASH_TYPE>(n_dims_to_encode, encoding);
-		case 4: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 4, HASH_TYPE>(n_dims_to_encode, encoding);
-		case 8: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 8, HASH_TYPE>(n_dims_to_encode, encoding);
 		case 16: return create_bitgrid_encoding_templated_3<T, N_FEATURES_PER_LEVEL, 16, HASH_TYPE>(n_dims_to_encode, encoding);
 		default: throw std::runtime_error{"BitGridEncoding: n_output_features_per_level must be 1, 2, 4, 8, or 16."};
 	}
