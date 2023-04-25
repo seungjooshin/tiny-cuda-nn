@@ -212,8 +212,7 @@ __device__ uint32_t grid_index(const GridType grid_type, const uint32_t hashmap_
 		stride *= grid_resolution;
 	}
 
-	// if (grid_type == GridType::Hash && hashmap_size < stride) {
-	if (grid_type == GridType::Hash) {
+	if (grid_type == GridType::Hash && hashmap_size < stride) {
 		index = grid_hash<N_DIMS, HASH_TYPE>(pos_grid);
 	}
 
