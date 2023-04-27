@@ -43,6 +43,8 @@ TCNN_NAMESPACE_BEGIN
 InterpolationType string_to_interpolation_type(const std::string& interpolation_type) {
 	if (equals_case_insensitive(interpolation_type, "Nearest")) {
 		return InterpolationType::Nearest;
+	} else if (equals_case_insensitive(interpolation_type, "BinaryNearest")) {
+		return InterpolationType::BinaryNearest;
 	} else if (equals_case_insensitive(interpolation_type, "Linear")) {
 		return InterpolationType::Linear;
 	} else if (equals_case_insensitive(interpolation_type, "Smoothstep")) {

@@ -324,8 +324,15 @@ __global__ void kernel_grid(
 		return *(vector_t<T, N_FEATURES_PER_LEVEL>*)&grid[index];
 	};
 
-	if (interpolation_type == InterpolationType::Nearest) {
+	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::BinaryNearest) {
 		auto result = grid_val(pos_grid);
+
+		if (interpolation_type == InterpolationType::BinaryNearest){
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++feature) {
+				((T*)&result)[f] = (T)((float)((T*)&result)[f] > 0 ? 1.0f : -1.0f);
+			}
+		}
 
 		if (encoded_positions) {
 			TCNN_PRAGMA_UNROLL
@@ -547,7 +554,7 @@ __global__ void kernel_grid_backward(
 		grad[f] = dL_dy[i + (level * N_FEATURES_PER_LEVEL + feature + f) * num_elements];
 	}
 
-	if (interpolation_type == InterpolationType::Nearest) {
+	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::BinaryNearest) {
 		add_grid_gradient(pos_grid, grad, 1.0f);
 		return;
 	}
@@ -755,7 +762,7 @@ __global__ void kernel_grid_backward_input_backward_grid(
 		grad[f] = dL_dy[i + (level * N_FEATURES_PER_LEVEL + feature + f) * num_elements];
 	}
 
-	if (interpolation_type == InterpolationType::Nearest) {
+	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::BinaryNearest) {
 		// d(dydx)_dgrid is zero when there's no interpolation.
 		return;
 	}
@@ -924,7 +931,7 @@ __global__ void kernel_grid_backward_input_backward_input(
 		grad[f] = dL_dy[i + (level * N_FEATURES_PER_LEVEL + feature + f) * num_elements];
 	}
 
-	if (interpolation_type == InterpolationType::Nearest) {
+	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::BinaryNearest) {
 		// d(dydx)_dx is zero when there's no interpolation
 		return;
 	}

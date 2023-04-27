@@ -38,6 +38,7 @@ TCNN_NAMESPACE_BEGIN
 
 enum class InterpolationType {
 	Nearest,
+	BinaryNearest,
 	Linear,
 	Smoothstep,
 	BinaryLinear,
