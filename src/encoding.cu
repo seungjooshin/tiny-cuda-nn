@@ -45,6 +45,8 @@ InterpolationType string_to_interpolation_type(const std::string& interpolation_
 		return InterpolationType::Nearest;
 	} else if (equals_case_insensitive(interpolation_type, "BinaryNearest")) {
 		return InterpolationType::BinaryNearest;
+	} else if (equals_case_insensitive(interpolation_type, "BinaryNearestWeighted")) {
+		return InterpolationType::BinaryNearestWeighted;
 	} else if (equals_case_insensitive(interpolation_type, "Linear")) {
 		return InterpolationType::Linear;
 	} else if (equals_case_insensitive(interpolation_type, "Smoothstep")) {
@@ -64,6 +66,7 @@ std::string to_string(InterpolationType interpolation_type) {
 	switch (interpolation_type) {
 		case InterpolationType::Nearest: return "Nearest";
 		case InterpolationType::BinaryNearest: return "BinaryNearest";
+		case InterpolationType::BinaryNearestWeighted: return "BinaryNearestWeighted";
 		case InterpolationType::Linear: return "Linear";
 		case InterpolationType::Smoothstep: return "Smoothstep";
 		case InterpolationType::BinaryLinear: return "BinaryLinear";

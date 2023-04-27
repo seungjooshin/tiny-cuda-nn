@@ -326,12 +326,20 @@ __global__ void kernel_grid(
 
 	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::BinaryNearest) {
 		auto result = grid_val(pos_grid);
+		
+		float weight = 1;
+		if (interpolation_type == InterpolationType::BinaryNearestWeighted){
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+				weight *= 1 - pos[dim];
+			}
+		}
 
-		if (interpolation_type == InterpolationType::BinaryNearest){
+		if (interpolation_type == InterpolationType::BinaryNearest || interpolation_type == InterpolationType::BinaryNearestWeighted) {
 			TCNN_PRAGMA_UNROLL
 			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++feature) {
 				float data = (float)((T*)&result)[f];
-				((T*)&result)[f] = (T)(data > 0 ? 1.0f : -1.0f);
+				((T*)&result)[f] = (T)(data > 0 ? weight * 1.0f : weight *  -1.0f);
 			}
 		}
 
@@ -556,7 +564,14 @@ __global__ void kernel_grid_backward(
 	}
 
 	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::BinaryNearest) {
-		add_grid_gradient(pos_grid, grad, 1.0f);
+		float weight = 1;
+		if (interpolation_type == InterpolationType::BinaryNearestWeighted) {
+			TCNN_PRAGMA_UNROLL
+			for (uint32_t dim = 0; dim < N_POS_DIMS; ++dim) {
+				weight *= 1 - pos[dim];
+			}
+		}
+		add_grid_gradient(pos_grid, grad, weight);
 		return;
 	}
 
