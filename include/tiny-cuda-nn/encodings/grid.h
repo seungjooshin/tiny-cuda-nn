@@ -337,7 +337,7 @@ __global__ void kernel_grid(
 
 		if (interpolation_type == InterpolationType::BinaryNearest || interpolation_type == InterpolationType::BinaryNearestWeighted) {
 			TCNN_PRAGMA_UNROLL
-			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++feature) {
+			for (uint32_t f = 0; f < N_FEATURES_PER_LEVEL; ++f) {
 				float data = (float)((T*)&result)[f];
 				((T*)&result)[f] = (T)(data > 0 ? weight * 1.0f : weight *  -1.0f);
 			}
