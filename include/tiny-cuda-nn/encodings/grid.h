@@ -324,7 +324,7 @@ __global__ void kernel_grid(
 		return *(vector_t<T, N_FEATURES_PER_LEVEL>*)&grid[index];
 	};
 
-	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::BinaryNearest) {
+	if (interpolation_type == InterpolationType::Nearest || interpolation_type == InterpolationType::BinaryNearest || interpolation_type == InterpolationType::BinaryNearestWeighted) {
 		auto result = grid_val(pos_grid);
 		
 		float weight = 1;
