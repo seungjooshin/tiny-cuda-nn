@@ -63,6 +63,7 @@ InterpolationType string_to_interpolation_type(const std::string& interpolation_
 std::string to_string(InterpolationType interpolation_type) {
 	switch (interpolation_type) {
 		case InterpolationType::Nearest: return "Nearest";
+		case InterpolationType::BinaryNearest: return "BinaryNearest";
 		case InterpolationType::Linear: return "Linear";
 		case InterpolationType::Smoothstep: return "Smoothstep";
 		case InterpolationType::BinaryLinear: return "BinaryLinear";
