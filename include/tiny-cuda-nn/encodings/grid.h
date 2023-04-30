@@ -330,8 +330,23 @@ __global__ void kernel_grid(
 					pos_grid_local[dim] = pos_grid[dim] + 1;
 				}
 			}
+			auto val = grid_val(pos_grid_local);
 
-			result = fma((T)weight, grid_val(pos_grid_local), result);
+			if (interpolation_type == InterpolationType::BinaryLinear) {
+				TCNN_PRAGMA_UNROLL
+				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+					float data = (float)((T*)&val)[feature];
+					data = data >= 0 ? 1.0f : -1.0f; // apply binary activation function
+					((T*)&result)[feature] += (T)(weight * data);
+				}
+			}
+			else {
+				TCNN_PRAGMA_UNROLL
+				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
+					float data = (float)((T*)&val)[feature];
+					((T*)&result)[feature] += (T)(weight * data);
+				}
+			}
 		}
 
 		TCNN_PRAGMA_UNROLL
@@ -1441,7 +1456,7 @@ GridEncoding<T>* create_grid_encoding_templated_2(uint32_t n_dims_to_encode, con
 
 	// If higher-dimensional hash encodings are desired, corresponding switch cases can be added
 	switch (n_dims_to_encode) {
-		// case 1: return new GridEncodingTemplated<T, 1, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
+		case 1: return new GridEncodingTemplated<T, 1, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
 		case 2: return new GridEncodingTemplated<T, 2, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
 		case 3: return new GridEncodingTemplated<T, 3, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
 		case 4: return new GridEncodingTemplated<T, 4, N_FEATURES_PER_LEVEL, HASH_TYPE>{ TCNN_GRID_PARAMS };
