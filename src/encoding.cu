@@ -33,6 +33,7 @@
 #include <tiny-cuda-nn/encodings/empty.h>
 #include <tiny-cuda-nn/encodings/frequency.h>
 #include <tiny-cuda-nn/encodings/grid.h>
+#include <tiny-cuda-nn/encodings/multigrid.h>
 #include <tiny-cuda-nn/encodings/identity.h>
 #include <tiny-cuda-nn/encodings/oneblob.h>
 #include <tiny-cuda-nn/encodings/spherical_harmonics.h>
@@ -106,6 +107,14 @@ void register_builtin_encodings() {
 	register_encoding<T>("HashGrid", grid_factory);
 	register_encoding<T>("TiledGrid", grid_factory);
 	register_encoding<T>("DenseGrid", grid_factory);
+
+	auto multigrid_factory = [](uint32_t n_dims_to_encode, const json& encoding) {
+		return create_multigrid_encoding<T>(n_dims_to_encode, encoding);
+	};
+	register_encoding<T>("MutliGrid", multigrid_factory);
+	register_encoding<T>("MultiHashGrid", multigrid_factory);
+	register_encoding<T>("MultiTiledGrid", multigrid_factory);
+	register_encoding<T>("MultiDenseGrid", multigrid_factory);
 
 	register_encoding<T>("Identity", [](uint32_t n_dims_to_encode, const json& encoding) {
 		return new IdentityEncoding<T>{n_dims_to_encode, encoding.value("scale", 1.0f), encoding.value("offset", 0.0f)};

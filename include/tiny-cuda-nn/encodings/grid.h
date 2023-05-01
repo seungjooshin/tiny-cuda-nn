@@ -82,6 +82,14 @@ enum class HashType {
 	CoherentPrime,
 	ReversedPrime,
 	Rng,
+	MyPrime0,
+	MyPrime1,
+	MyPrime2,
+	MyPrime3,
+	MyPrime4,
+	MyPrime5,
+	MyPrime6,
+	MyPrime7,
 };
 
 inline HashType string_to_hash_type(const std::string& hash_type) {
@@ -93,6 +101,22 @@ inline HashType string_to_hash_type(const std::string& hash_type) {
 		return HashType::ReversedPrime;
 	} else if (equals_case_insensitive(hash_type, "Rng")) {
 		return HashType::Rng;
+	} else if (equals_case_insensitive(hash_type, "MyPrime0")) {
+		return HashType::MyPrime0;
+	} else if (equals_case_insensitive(hash_type, "MyPrime1")) {
+		return HashType::MyPrime1;
+	} else if (equals_case_insensitive(hash_type, "MyPrime2")) {
+		return HashType::MyPrime2;
+	} else if (equals_case_insensitive(hash_type, "MyPrime3")) {
+		return HashType::MyPrime3;
+	} else if (equals_case_insensitive(hash_type, "MyPrime4")) {
+		return HashType::MyPrime4;
+	} else if (equals_case_insensitive(hash_type, "MyPrime5")) {
+		return HashType::MyPrime5;
+	} else if (equals_case_insensitive(hash_type, "MyPrime6")) {
+		return HashType::MyPrime6;
+	} else if (equals_case_insensitive(hash_type, "MyPrime7")) {
+		return HashType::MyPrime7;
 	}
 
 	throw std::runtime_error{fmt::format("Invalid hash type: {}", hash_type)};
@@ -104,6 +128,14 @@ inline std::string to_string(HashType hash_type) {
 		case HashType::CoherentPrime: return "CoherentPrime";
 		case HashType::ReversedPrime: return "ReversedPrime";
 		case HashType::Rng: return "Rng";
+		case HashType::MyPrime0: return "MyPrime0";
+		case HashType::MyPrime1: return "MyPrime1";
+		case HashType::MyPrime2: return "MyPrime2";
+		case HashType::MyPrime0: return "MyPrime3";
+		case HashType::MyPrime1: return "MyPrime4";
+		case HashType::MyPrime2: return "MyPrime5";
+		case HashType::MyPrime0: return "MyPrime6";
+		case HashType::MyPrime1: return "MyPrime7";
 		default: throw std::runtime_error{"Invalid hash type."};
 	}
 }
@@ -141,6 +173,55 @@ __device__ uint32_t reversed_prime_hash(const uint32_t pos_grid[N_DIMS]) {
 }
 
 template <uint32_t N_DIMS>
+__device__ uint32_t my_prime_0_hash(const uint32_t pos_grid[N_DIMS]) {
+	constexpr uint32_t factors[7] = { 1958374283u, 2654435761u, 805459861u, 1u, 1u, 1u, 1u };
+	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
+}
+
+template <uint32_t N_DIMS>
+__device__ uint32_t my_prime_1_hash(const uint32_t pos_grid[N_DIMS]) {
+	constexpr uint32_t factors[7] = { 3674653429u, 2097192037u, 1434869437u, 1u, 1u, 1u, 1u };
+	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
+}
+
+template <uint32_t N_DIMS>
+__device__ uint32_t my_prime_2_hash(const uint32_t pos_grid[N_DIMS]) {
+	constexpr uint32_t factors[7] = { 73856093u, 19349669u, 83492791u, 1u, 1u, 1u, 1u };
+	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
+}
+
+template <uint32_t N_DIMS>
+__device__ uint32_t my_prime_3_hash(const uint32_t pos_grid[N_DIMS]) {
+	constexpr uint32_t factors[7] = { 2654435761u, 805459861u, 1958374283u, 1u, 1u, 1u, 1u };
+	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
+}
+
+template <uint32_t N_DIMS>
+__device__ uint32_t my_prime_4_hash(const uint32_t pos_grid[N_DIMS]) {
+	constexpr uint32_t factors[7] = { 2097192037u, 1434869437u, 3674653429u, 1u, 1u, 1u, 1u };
+	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
+}
+
+template <uint32_t N_DIMS>
+__device__ uint32_t my_prime_5_hash(const uint32_t pos_grid[N_DIMS]) {
+	constexpr uint32_t factors[7] = { 19349669u, 83492791u, 73856093u, 1u, 1u, 1u, 1u };
+	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
+}
+
+template <uint32_t N_DIMS>
+__device__ uint32_t my_prime_6_hash(const uint32_t pos_grid[N_DIMS]) {
+	constexpr uint32_t factors[7] = { 805459861u, 1958374283u, 2654435761u, 1u, 1u, 1u, 1u };
+	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
+}
+
+template <uint32_t N_DIMS>
+__device__ uint32_t my_prime_7_hash(const uint32_t pos_grid[N_DIMS]) {
+	constexpr uint32_t factors[7] = { 1434869437u, 3674653429u, 2097192037u, 1u, 1u, 1u, 1u };
+	return lcg_hash<N_DIMS, 7>(pos_grid, factors);
+}
+
+
+template <uint32_t N_DIMS>
 __device__ uint32_t rng_hash(const uint32_t pos_grid[N_DIMS], const uint32_t seed = 1337) {
 	constexpr uint32_t N_BITS_PER_DIM = 64 / N_DIMS;
 	uint64_t step = 0;
@@ -162,6 +243,14 @@ __device__ uint32_t grid_hash(const uint32_t pos_grid[N_DIMS]) {
 		case HashType::CoherentPrime: return coherent_prime_hash<N_DIMS>(pos_grid);
 		case HashType::ReversedPrime: return reversed_prime_hash<N_DIMS>(pos_grid);
 		case HashType::Rng: return rng_hash<N_DIMS>(pos_grid);
+		case HashType::MyPrime0: return my_prime_0_hash<N_DIMS>(pos_grid);
+		case HashType::MyPrime1: return my_prime_1_hash<N_DIMS>(pos_grid);
+		case HashType::MyPrime2: return my_prime_2_hash<N_DIMS>(pos_grid);
+		case HashType::MyPrime3: return my_prime_3_hash<N_DIMS>(pos_grid);
+		case HashType::MyPrime4: return my_prime_4_hash<N_DIMS>(pos_grid);
+		case HashType::MyPrime5: return my_prime_5_hash<N_DIMS>(pos_grid);
+		case HashType::MyPrime6: return my_prime_6_hash<N_DIMS>(pos_grid);
+		case HashType::MyPrime7: return my_prime_7_hash<N_DIMS>(pos_grid);
 	}
 
 	return 0;
