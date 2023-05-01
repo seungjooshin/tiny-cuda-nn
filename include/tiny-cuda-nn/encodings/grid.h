@@ -131,11 +131,11 @@ inline std::string to_string(HashType hash_type) {
 		case HashType::MyPrime0: return "MyPrime0";
 		case HashType::MyPrime1: return "MyPrime1";
 		case HashType::MyPrime2: return "MyPrime2";
-		case HashType::MyPrime0: return "MyPrime3";
-		case HashType::MyPrime1: return "MyPrime4";
-		case HashType::MyPrime2: return "MyPrime5";
-		case HashType::MyPrime0: return "MyPrime6";
-		case HashType::MyPrime1: return "MyPrime7";
+		case HashType::MyPrime3: return "MyPrime3";
+		case HashType::MyPrime4: return "MyPrime4";
+		case HashType::MyPrime5: return "MyPrime5";
+		case HashType::MyPrime6: return "MyPrime6";
+		case HashType::MyPrime7: return "MyPrime7";
 		default: throw std::runtime_error{"Invalid hash type."};
 	}
 }
