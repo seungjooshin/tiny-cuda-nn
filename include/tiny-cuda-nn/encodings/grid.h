@@ -1577,6 +1577,15 @@ GridEncoding<T>* create_grid_encoding(uint32_t n_dims_to_encode, const json& enc
 		case HashType::CoherentPrime: return create_grid_encoding_templated_1<T, HashType::CoherentPrime>(n_dims_to_encode, encoding);
 		case HashType::ReversedPrime: return create_grid_encoding_templated_1<T, HashType::ReversedPrime>(n_dims_to_encode, encoding);
 		case HashType::Rng: return create_grid_encoding_templated_1<T, HashType::Rng>(n_dims_to_encode, encoding);
+		case HashType::MyPrime0: return create_grid_encoding_templated_1<T, HashType::MyPrime0>(n_dims_to_encode, encoding);
+		case HashType::MyPrime1: return create_grid_encoding_templated_1<T, HashType::MyPrime1>(n_dims_to_encode, encoding);
+		case HashType::MyPrime2: return create_grid_encoding_templated_1<T, HashType::MyPrime2>(n_dims_to_encode, encoding);
+		case HashType::MyPrime3: return create_grid_encoding_templated_1<T, HashType::MyPrime3>(n_dims_to_encode, encoding);
+		case HashType::MyPrime4: return create_grid_encoding_templated_1<T, HashType::MyPrime4>(n_dims_to_encode, encoding);
+		case HashType::MyPrime5: return create_grid_encoding_templated_1<T, HashType::MyPrime5>(n_dims_to_encode, encoding);
+		case HashType::MyPrime6: return create_grid_encoding_templated_1<T, HashType::MyPrime6>(n_dims_to_encode, encoding);
+		case HashType::MyPrime7: return create_grid_encoding_templated_1<T, HashType::MyPrime7>(n_dims_to_encode, encoding);
+
 		default: throw std::runtime_error{"GridEncoding: invalid hash type."};
 	}
 }

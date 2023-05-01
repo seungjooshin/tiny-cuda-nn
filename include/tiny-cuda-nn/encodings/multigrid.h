@@ -832,7 +832,7 @@ private:
 template <typename T, uint32_t N_FEATURES_PER_LEVEL, uint32_t N_OUTPUT_FEATURES_PER_LEVEL, HashType HASH_TYPE>
 MultiGridEncoding<T>* create_multigrid_encoding_templated_3(uint32_t n_dims_to_encode, const json& encoding) {
 	const uint32_t log2_hashmap_size = encoding.value("log2_hashmap_size", 19u);
-	const std::string encoding_type = encoding.value("otype", "Grid");
+	const std::string encoding_type = encoding.value("otype", "MultiGrid");
 	const std::string default_type = equals_case_insensitive(encoding_type, "MultiTiledGrid") ? "Tiled" : (equals_case_insensitive(encoding_type, "MultiDenseGrid") ? "Dense" : "Hash");
 
 	uint32_t n_features;
