@@ -405,7 +405,7 @@ class Encoding(Module):
 
 		x_padded = x if batch_size == padded_batch_size else torch.nn.functional.pad(x, [0, 0, 0, padded_batch_size - batch_size])
 		if self.binary:
-			self.params = torch.clamp(self.params, -1, 1)
+			self.params = torch.nn.Paramter(torch.clamp(self.params, -1, 1))
 			output = _module_function_binary.apply(
 				self.native_tcnn_module,
 				x_padded.to(torch.float).contiguous(),
