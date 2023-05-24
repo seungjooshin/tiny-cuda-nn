@@ -188,7 +188,7 @@ class _module_function_binary_backward(torch.autograd.Function):
 			scaled_grad = doutput * ctx_fwd.loss_scale
 			input_grad, params_grad = ctx_fwd.native_tcnn_module.bwd(ctx_fwd.native_ctx, input, params, output, scaled_grad)
 			input_grad = null_tensor_like(input) if input_grad is None else (input_grad / ctx_fwd.loss_scale)
-			params_grad = null_tensor_like(params) if params_grad is None else ((params <= 1) * (params >= -1)) * (params_grad / ctx_fwd.loss_scale)
+			params_grad = null_tensor_like(params) if params_grad is None else torch.nn.functional.hardtanh((params_grad / ctx_fwd.loss_scale))
 		return input_grad, params_grad
 
 	@staticmethod
