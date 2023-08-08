@@ -337,7 +337,7 @@ __global__ void kernel_grid(
 				for (uint32_t feature = 0; feature < N_FEATURES_PER_LEVEL; ++feature) {
 					float data = (float)((T*)&val)[feature];
 					// data = data >= 0 ? 1.0f : -1.0f; // apply binary activation function
-					float sample = random_val(1337, i + (level * N_FEATURES_PER_LEVEL + idx) * num_elements);
+					float sample = random_val(1337, i + (level * N_FEATURES_PER_LEVEL + feature) * num_elements);
 					float prob = fmaxf(0.0f, fminf(1.0f, (data + 1.0f) / 2.0f));
 					data = sample <= prob ? 1.0f : -1.0f; // apply binary activation function
 					((T*)&result)[feature] += (T)(weight * data);
