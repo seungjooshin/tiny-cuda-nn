@@ -336,7 +336,7 @@ class Encoding_Entropy(Module):
 			else:
 				raise ValueError(f"Encoding only supports fp32 or fp16 precision, but got {dtype}")
 
-		super(Encoding, self).__init__(seed=seed)
+		super(Encoding_Entropy, self).__init__(seed=seed)
 
 		self.n_output_dims = self.native_tcnn_module.n_output_dims()
 
