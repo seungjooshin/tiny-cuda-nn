@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -33,7 +33,7 @@
 
 #include <stack>
 
-TCNN_NAMESPACE_BEGIN
+namespace tcnn {
 
 void free_multi_streams(cudaStream_t parent_stream);
 
@@ -251,4 +251,4 @@ private:
 	size_t m_n_streams = 0;
 };
 
-TCNN_NAMESPACE_END
+}

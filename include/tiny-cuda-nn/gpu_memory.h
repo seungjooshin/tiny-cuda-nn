@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -32,21 +32,21 @@
 
 #pragma once
 
-#include <tiny-cuda-nn/common.h>
+#include <tiny-cuda-nn/common_host.h>
 #include <tiny-cuda-nn/cuda_graph.h>
 
 #include <cuda.h>
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <stdexcept>
-#include <stdint.h>
 #include <string>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
 
-TCNN_NAMESPACE_BEGIN
+namespace tcnn {
 
 #define DEBUG_GUARD_SIZE 0
 
@@ -112,15 +112,13 @@ public:
 			return;
 		}
 
-#ifdef TCNN_VERBOSE_MEMORY_ALLOCS
-		std::cout << "GPUMemory: Allocating " << bytes_to_string(n_bytes) << "." << std::endl;
-#endif
+		log_debug("GPUMemory: allocating {}.", bytes_to_string(n_bytes));
 
 		uint8_t* rawptr = nullptr;
 		if (m_managed) {
-			CUDA_CHECK_THROW(cudaMallocManaged(&rawptr, n_bytes+DEBUG_GUARD_SIZE*2));
+			CUDA_CHECK_THROW(cudaMallocManaged((void**)&rawptr, n_bytes+DEBUG_GUARD_SIZE*2));
 		} else {
-			CUDA_CHECK_THROW(cudaMalloc(&rawptr, n_bytes+DEBUG_GUARD_SIZE*2));
+			CUDA_CHECK_THROW(cudaMalloc((void**)&rawptr, n_bytes+DEBUG_GUARD_SIZE*2));
 		}
 #if DEBUG_GUARD_SIZE > 0
 		CUDA_CHECK_THROW(cudaMemset(rawptr, 0xff, DEBUG_GUARD_SIZE));
@@ -154,10 +152,10 @@ public:
 				free_memory();
 				m_size = 0;
 			}
-		} catch (std::runtime_error error) {
+		} catch (const std::runtime_error& error) {
 			// Don't need to report on memory-free problems when the driver is shutting down.
 			if (std::string{error.what()}.find("driver shutting down") == std::string::npos) {
-				std::cerr << "Could not free memory: " << error.what() << std::endl;
+				log_warning("Could not free memory: {}", error.what());
 			}
 		}
 #endif
@@ -172,7 +170,7 @@ public:
 			if (m_size) {
 				try {
 					free_memory();
-				} catch (std::runtime_error error) {
+				} catch (const std::runtime_error& error) {
 					throw std::runtime_error{fmt::format("Could not free memory: {}", error.what())};
 				}
 			}
@@ -180,7 +178,7 @@ public:
 			if (size > 0) {
 				try {
 					allocate_memory(size * sizeof(T));
-				} catch (std::runtime_error error) {
+				} catch (const std::runtime_error& error) {
 					throw std::runtime_error{fmt::format("Could not allocate memory: {}", error.what())};
 				}
 			}
@@ -352,7 +350,7 @@ public:
 		}
 
 		if (idx > m_size) {
-			throw std::runtime_error{fmt::format("GPUMemory our of bounds: idx={} size={}", idx, m_size)};
+			throw std::runtime_error{fmt::format("GPUMemory out of bounds: idx={} size={}", idx, m_size)};
 		}
 
 		return m_data[idx];
@@ -432,31 +430,31 @@ public:
 
 		// Align memory at least by a cache line (128 bytes).
 		m_alignment = (size_t)128;
-		m_max_size = next_multiple(cuda_memory_info().total, cuda_memory_granularity());
+		m_max_size = previous_multiple(cuda_memory_info().total, cuda_memory_granularity());
 
 		m_free_intervals = {{0, m_max_size}};
-
-		if (!cuda_supports_virtual_memory()) {
-			// Use regular memory as fallback
-			m_fallback_memory = std::make_shared<GPUMemory<uint8_t>>();
-
-			static bool printed_warning = false;
-			if (!printed_warning) {
-				printed_warning = true;
-				std::cout
-					<< "GPUMemoryArena: Warning: GPU " << m_device << " does not support virtual memory. "
-					<< "Falling back to regular allocations, which will be larger and can cause occasional stutter."
-					<< std::endl;
-			}
-			return;
-		}
 
 		// Reserve an address range that would be sufficient for housing the entire
 		// available GPU RAM (if nothing else was using the GPU). This is unlikely
 		// to exhaust all available addresses (even if multiple GPUMemoryArenas are
 		// used simultaneously), while also ensuring that we never exhaust the
 		// reserved address range without running out of physical memory beforehand.
-		CU_CHECK_THROW(cuMemAddressReserve(&m_base_address, m_max_size, 0, 0, 0));
+		if (cuda_supports_virtual_memory() && cuMemAddressReserve(&m_base_address, m_max_size, 0, 0, 0) == CUDA_SUCCESS) {
+			return;
+		}
+
+		// Use regular memory as fallback
+		m_fallback_memory = std::make_shared<GPUMemory<uint8_t>>();
+
+		static bool printed_warning = false;
+		if (!printed_warning) {
+			printed_warning = true;
+			log_warning(
+				"GPUMemoryArena: GPU {} does not support virtual memory. "
+				"Falling back to regular allocations, which will be larger and can cause occasional stutter.",
+				m_device
+			);
+		}
 	}
 
 	GPUMemoryArena(GPUMemoryArena&& other) = default;
@@ -466,7 +464,7 @@ public:
 
 	~GPUMemoryArena() {
 		if (in_use()) {
-			std::cerr << "Attempting to free memory arena while it is still in use." << std::endl;
+			log_warning("Attempting to free memory arena while it is still in use.");
 		}
 
 		try {
@@ -488,10 +486,10 @@ public:
 
 				CU_CHECK_THROW(cuMemAddressFree(m_base_address, m_max_size));
 			}
-		} catch (std::runtime_error error) {
+		} catch (const std::runtime_error& error) {
 			// Don't need to report on memory-free problems when the driver is shutting down.
 			if (std::string{error.what()}.find("driver shutting down") == std::string::npos) {
-				std::cerr << "Could not free memory arena: " << error.what() << std::endl;
+				log_warning("Could not free memory arena: {}", error.what());
 			}
 		}
 	}
@@ -558,6 +556,8 @@ public:
 		if (cuda_device() != m_device) {
 			throw std::runtime_error{fmt::format("Attempted to use a GPUMemoryArena of device {} from the wrong device {}.", m_device, cuda_device())};
 		}
+
+		log_debug("GPUMemoryArena: enlarging from {} to {}", bytes_to_string(m_size), bytes_to_string(n_bytes));
 
 		if (m_fallback_memory) {
 			static const double GROWTH_FACTOR = 1.5;
@@ -753,4 +753,4 @@ inline void free_all_gpu_memory_arenas() {
 	global_gpu_memory_arenas().clear();
 }
 
-TCNN_NAMESPACE_END
+}

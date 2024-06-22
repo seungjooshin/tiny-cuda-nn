@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-TCNN_NAMESPACE_BEGIN
+namespace tcnn {
 
 std::vector<std::pair<uint32_t, uint32_t>> slice_weights(
 	const std::vector<std::pair<uint32_t, uint32_t>>& object_layer_size,
@@ -121,11 +121,11 @@ public:
 		}
 	}
 
-	uint32_t n_nested() const override {
+	size_t n_nested() const override {
 		return m_nested.size();
 	}
 
-	const std::shared_ptr<Optimizer<T>>& nested(uint32_t idx) const override {
+	const std::shared_ptr<Optimizer<T>>& nested(size_t idx) const override {
 		CHECK_THROW(idx < m_nested.size());
 		return m_nested[idx];
 	}
@@ -172,4 +172,4 @@ private:
 	GPUMemory<T> m_custom_weights;
 };
 
-TCNN_NAMESPACE_END
+}

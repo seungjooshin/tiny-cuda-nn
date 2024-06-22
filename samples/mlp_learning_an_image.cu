@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -187,7 +187,7 @@ int main(int argc, char* argv[]) {
 		// int sampling_height = 1024;
 
 		uint32_t n_coords = sampling_width * sampling_height;
-		uint32_t n_coords_padded = next_multiple(n_coords, batch_size_granularity);
+		uint32_t n_coords_padded = next_multiple(n_coords, BATCH_SIZE_GRANULARITY);
 
 		GPUMemory<float> sampled_image(n_coords * 3);
 		GPUMemory<float> xs_and_ys(n_coords_padded * 2);
@@ -210,7 +210,7 @@ int main(int argc, char* argv[]) {
 		// Fourth step: train the model by sampling the above image and optimizing an error metric
 
 		// Various constants for the network and optimization
-		const uint32_t batch_size = 1 << 16;
+		const uint32_t batch_size = 1 << 18;
 		const uint32_t n_training_steps = argc >= 4 ? atoi(argv[3]) : 10000000;
 		const uint32_t n_input_dims = 2; // 2-D image coordinate
 		const uint32_t n_output_dims = 3; // RGB color
@@ -309,7 +309,7 @@ int main(int argc, char* argv[]) {
 
 		// If only the memory arenas pertaining to a single stream are to be freed, use
 		//free_gpu_memory_arena(stream);
-	} catch (std::exception& e) {
+	} catch (const std::exception& e) {
 		std::cout << "Uncaught exception: " << e.what() << std::endl;
 	}
 

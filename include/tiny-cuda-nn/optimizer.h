@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -34,7 +34,7 @@
 
 #include <stdint.h>
 
-TCNN_NAMESPACE_BEGIN
+namespace tcnn {
 
 template <typename T>
 class Optimizer : public ObjectWithMutableHyperparams {
@@ -43,7 +43,7 @@ public:
 
 	virtual void allocate(uint32_t n_weights, const std::vector<std::pair<uint32_t, uint32_t>>& layer_sizes = {}) = 0;
 	void allocate(const std::shared_ptr<ParametricObject<T>>& target) {
-		allocate(target->n_params(), target->layer_sizes());
+		allocate((uint32_t)target->n_params(), target->layer_sizes());
 	};
 
 	virtual void step(cudaStream_t stream, float loss_scale, float* weights_full_precision, T* weights, const T* gradients) = 0;
@@ -53,8 +53,8 @@ public:
 	virtual uint32_t n_weights() const = 0;
 	virtual T* custom_weights() const = 0;
 
-	virtual uint32_t n_nested() const = 0;
-	virtual const std::shared_ptr<Optimizer<T>>& nested(uint32_t idx = 0) const {
+	virtual size_t n_nested() const { return 0; }
+	virtual const std::shared_ptr<Optimizer<T>>& nested(size_t idx = 0) const {
 		throw std::runtime_error{"Optimizer does not support nesting."};
 	}
 
@@ -65,4 +65,4 @@ public:
 template <typename T>
 Optimizer<T>* create_optimizer(const json& params);
 
-TCNN_NAMESPACE_END
+}

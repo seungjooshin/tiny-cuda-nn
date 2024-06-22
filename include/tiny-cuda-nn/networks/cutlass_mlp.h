@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -39,7 +39,7 @@
 #include <array>
 #include <vector>
 
-TCNN_NAMESPACE_BEGIN
+namespace tcnn {
 
 template <typename T>
 class CutlassMLP : public Network<T> {
@@ -63,7 +63,7 @@ public:
 		const GPUMatrixDynamic<T>& dL_doutput,
 		GPUMatrixDynamic<T>* dL_dinput = nullptr,
 		bool use_inference_params = false,
-		EGradientMode param_gradients_mode = EGradientMode::Overwrite
+		GradientMode param_gradients_mode = GradientMode::Overwrite
 	) override;
 
 	void set_params_impl(T* params, T* inference_params, T* gradients) override;
@@ -184,4 +184,4 @@ private:
 	std::vector<GPUMatrix<T, RM>> m_gradient_matrices;
 };
 
-TCNN_NAMESPACE_END
+}

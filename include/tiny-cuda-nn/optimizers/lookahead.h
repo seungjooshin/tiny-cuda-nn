@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -39,7 +39,7 @@
 #include <string>
 #include <vector>
 
-TCNN_NAMESPACE_BEGIN
+namespace tcnn {
 
 template <typename T>
 __global__ void lookahead_step(
@@ -115,11 +115,11 @@ public:
 		return m_weights_lookahead.data();
 	}
 
-	uint32_t n_nested() const override {
+	size_t n_nested() const override {
 		return 1;
 	}
 
-	const std::shared_ptr<Optimizer<T>>& nested(uint32_t idx) const override {
+	const std::shared_ptr<Optimizer<T>>& nested(size_t idx) const override {
 		CHECK_THROW(idx == 0);
 		return m_nested;
 	}
@@ -167,4 +167,4 @@ private:
 	GPUMemory<T> m_weights_lookahead;
 };
 
-TCNN_NAMESPACE_END
+}

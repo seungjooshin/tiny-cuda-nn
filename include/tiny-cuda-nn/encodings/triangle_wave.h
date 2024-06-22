@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -40,7 +40,7 @@
 #include <string>
 #include <vector>
 
-TCNN_NAMESPACE_BEGIN
+namespace tcnn {
 
 template <typename T>
 __global__ void triangle_wave_encoding(
@@ -153,9 +153,9 @@ public:
 		const GPUMatrixDynamic<T>& dL_doutput,
 		GPUMatrixDynamic<float>* dL_dinput = nullptr,
 		bool use_inference_params = false,
-		EGradientMode param_gradients_mode = EGradientMode::Overwrite
+		GradientMode param_gradients_mode = GradientMode::Overwrite
 	) override {
-		if (!dL_dinput || padded_output_width() == 0) {
+		if (!dL_dinput) {
 			return;
 		}
 
@@ -220,4 +220,4 @@ private:
 	uint32_t m_n_to_pad = 0;
 };
 
-TCNN_NAMESPACE_END
+}

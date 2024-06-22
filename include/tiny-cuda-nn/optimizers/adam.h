@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -42,7 +42,7 @@
 #include <string>
 #include <vector>
 
-TCNN_NAMESPACE_BEGIN
+namespace tcnn {
 
 template <typename T>
 __global__ void adam_step(
@@ -207,10 +207,6 @@ public:
 		return nullptr;
 	}
 
-	uint32_t n_nested() const override {
-		return 0;
-	}
-
 	void update_hyperparams(const json& params) override {
 		if (params.contains("beta1")) {
 			m_beta1 = params["beta1"];
@@ -330,4 +326,4 @@ private:
 	bool m_optimize_non_matrix_params = true;
 };
 
-TCNN_NAMESPACE_END
+}

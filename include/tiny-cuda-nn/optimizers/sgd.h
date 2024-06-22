@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -38,7 +38,7 @@
 #include <string>
 #include <vector>
 
-TCNN_NAMESPACE_BEGIN
+namespace tcnn {
 
 template <typename T>
 __global__ void sgd_step(
@@ -113,10 +113,6 @@ public:
 		return nullptr;
 	}
 
-	uint32_t n_nested() const override {
-		return 0;
-	}
-
 	void update_hyperparams(const json& params) override {
 		if (params.contains("learning_rate")) {
 			m_learning_rate = params["learning_rate"];
@@ -156,4 +152,4 @@ private:
 	float m_l2_reg = 1e-8f;
 };
 
-TCNN_NAMESPACE_END
+}

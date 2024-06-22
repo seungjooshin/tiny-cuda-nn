@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without modification, are permitted
 # provided that the following conditions are met:
@@ -105,17 +105,7 @@ function(TCNN_AUTODETECT_CUDA_ARCHITECTURES OUT_VARIABLE)
 			"}\n"
 		)
 
-		if (CMAKE_CUDA_COMPILER_LOADED) # CUDA as a language
-			try_run(run_result compile_result ${PROJECT_BINARY_DIR} ${file} RUN_OUTPUT_VARIABLE compute_capabilities)
-		else()
-			try_run(
-				run_result compile_result ${PROJECT_BINARY_DIR} ${file}
-				CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${CUDA_INCLUDE_DIRS}"
-				LINK_LIBRARIES ${CUDA_LIBRARIES}
-				RUN_OUTPUT_VARIABLE compute_capabilities
-			)
-		endif()
-
+		try_run(run_result compile_result ${PROJECT_BINARY_DIR} ${file} RUN_OUTPUT_VARIABLE compute_capabilities)
 		if (run_result EQUAL 0)
 			# If the user has multiple GPUs with the same compute capability installed, list that capability only once.
 			list(REMOVE_DUPLICATES compute_capabilities)
@@ -228,7 +218,6 @@ endif()
 if (MSVC)
 	list(APPEND CUDA_NVCC_FLAGS "-Xcompiler=/bigobj")
 else()
-	list(APPEND CUDA_NVCC_FLAGS "-Xcompiler=-mf16c")
 	list(APPEND CUDA_NVCC_FLAGS "-Xcompiler=-Wno-float-conversion")
 	list(APPEND CUDA_NVCC_FLAGS "-Xcompiler=-fno-strict-aliasing")
 	list(APPEND CUDA_NVCC_FLAGS "-Xcudafe=--diag_suppress=unrecognized_gcc_pragma")
@@ -258,8 +247,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR})
 
 set(TCNN_SOURCES
-	src/common.cu
-	src/common_device.cu
+	src/common_host.cu
 	src/cpp_api.cu
 	src/cutlass_mlp.cu
 	src/encoding.cu

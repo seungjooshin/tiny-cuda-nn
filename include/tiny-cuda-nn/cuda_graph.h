@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -29,14 +29,14 @@
 
 #pragma once
 
-#include <tiny-cuda-nn/common.h>
+#include <tiny-cuda-nn/common_host.h>
 
 #include <cuda.h>
 
 #include <deque>
 #include <functional>
 
-TCNN_NAMESPACE_BEGIN
+namespace tcnn {
 
 class CudaGraph;
 
@@ -54,10 +54,10 @@ public:
 	~CudaGraph() {
 		try {
 			reset();
-		} catch (std::runtime_error error) {
+		} catch (const std::runtime_error& error) {
 			// Don't need to report on destruction problems when the driver is shutting down.
 			if (std::string{error.what()}.find("driver shutting down") == std::string::npos) {
-				std::cerr << "Could not destroy cuda graph: " << error.what() << std::endl;
+				log_warning("Could not destroy cuda graph: {}", error.what());
 			}
 		}
 	}
@@ -124,6 +124,16 @@ public:
 			// This is cheaper than creating a new instance from scratch (and may involve just updating
 			// pointers rather than changing the topology of the graph.)
 			if (m_graph_instance) {
+#if CUDA_VERSION >= 12000
+				cudaGraphExecUpdateResultInfo update_result;
+				CUDA_CHECK_THROW(cudaGraphExecUpdate(m_graph_instance, m_graph, &update_result));
+
+				// If the update failed, reset graph instance. We will create a new one next.
+				if (update_result.result != cudaGraphExecUpdateSuccess) {
+					CUDA_CHECK_THROW(cudaGraphExecDestroy(m_graph_instance));
+					m_graph_instance = nullptr;
+				}
+#else
 				cudaGraphExecUpdateResult update_result;
 				cudaGraphNode_t error_node;
 				CUDA_CHECK_THROW(cudaGraphExecUpdate(m_graph_instance, m_graph, &error_node, &update_result));
@@ -133,6 +143,7 @@ public:
 					CUDA_CHECK_THROW(cudaGraphExecDestroy(m_graph_instance));
 					m_graph_instance = nullptr;
 				}
+#endif
 			}
 
 			if (!m_graph_instance) {
@@ -166,4 +177,4 @@ private:
 	bool m_synchronize_when_capture_done = false;
 };
 
-TCNN_NAMESPACE_END
+}

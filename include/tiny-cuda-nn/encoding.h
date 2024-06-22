@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
@@ -32,29 +32,9 @@
 #include <tiny-cuda-nn/common.h>
 #include <tiny-cuda-nn/object.h>
 
-#include <stdint.h>
+#include <cstdint>
 
-TCNN_NAMESPACE_BEGIN
-
-enum class InterpolationType {
-	Nearest,
-	Linear,
-	Smoothstep,
-};
-
-InterpolationType string_to_interpolation_type(const std::string& interpolation_type);
-
-std::string to_string(InterpolationType interpolation_type);
-
-enum class ReductionType {
-	Concatenation,
-	Sum,
-	Product,
-};
-
-ReductionType string_to_reduction_type(const std::string& reduction_type);
-
-std::string to_string(ReductionType reduction_type);
+namespace tcnn {
 
 template <typename T>
 class Encoding : public DifferentiableObject<float, T, T> {
@@ -75,6 +55,11 @@ public:
 
 	virtual MatrixLayout preferred_output_layout() const = 0;
 
+	virtual size_t n_nested() const { return 0; }
+	virtual const std::shared_ptr<Encoding<T>>& nested(size_t idx = 0) const {
+		throw std::runtime_error{"Encoding does not support nesting."};
+	}
+
 	// By default, an encoding has no parameters
 	void set_params_impl(T* params, T* inference_params, T* gradients) override { }
 	void initialize_params(pcg32& rnd, float* params_full_precision, float scale = 1) override { }
@@ -91,6 +76,15 @@ template <typename T>
 Encoding<T>* create_encoding(uint32_t n_dims_to_encode, const json& params, uint32_t alignment = 8);
 
 template <typename T>
+std::unique_ptr<Encoding<T>> default_encoding(uint32_t n_dims_in, const std::string& name) {
+	// Nest an identity encoding by default such that encodings that expect at least one nested encoding
+	// (e.g. CompositeEncoding) can be initialized and provide reasonable default behavior.
+	return std::unique_ptr<Encoding<T>>{create_encoding<T>(n_dims_in, {{"otype", name}, {"nested", {{{"otype", "Identity"}}}}})};
+}
+
+std::vector<std::string> builtin_encodings();
+
+template <typename T>
 void register_encoding(const std::string& name, const std::function<Encoding<T>*(uint32_t, const json&)>& factory);
 
-TCNN_NAMESPACE_END
+}

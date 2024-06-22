@@ -45,7 +45,7 @@ using namespace tcnn;
 
 auto model = create_from_config(n_input_dims, n_output_dims, config);
 
-// Train the model (batch_size must be a multiple of tcnn::batch_size_granularity)
+// Train the model (batch_size must be a multiple of tcnn::BATCH_SIZE_GRANULARITY)
 GPUMatrix<float> training_batch_inputs(n_input_dims, batch_size);
 GPUMatrix<float> training_batch_targets(n_output_dims, batch_size);
 
@@ -72,9 +72,9 @@ We provide a sample application where an image function _(x,y) -> (R,G,B)_ is le
 ```sh
 tiny-cuda-nn$ ./build/mlp_learning_an_image data/images/albert.jpg data/config_hash.json
 ```
-producing an image every 1000 training steps. Each 1000 steps should take roughly 0.42 seconds with the default configuration on an RTX 3090.
+producing an image every couple of training steps. Each 1000 steps should take a bit over 1 second with the default configuration on an RTX 4090.
 
-| 10 steps (4.2 ms) | 100 steps (42 ms) | 1000 steps (420 ms) | Reference image |
+| 10 steps | 100 steps | 1000 steps | Reference image |
 |:---:|:---:|:---:|:---:|
 | ![10steps](data/readme/10.jpg) | ![100steps](data/readme/100.jpg) | ![1000steps](data/readme/1000.jpg) | ![reference](data/images/albert.jpg) |
 
@@ -115,7 +115,7 @@ $ cd tiny-cuda-nn
 
 Then, use CMake to build the project: (on Windows, this must be in a [developer command prompt](https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160#developer_command_prompt))
 ```sh
-tiny-cuda-nn$ cmake . -B build
+tiny-cuda-nn$ cmake . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 tiny-cuda-nn$ cmake --build build --config RelWithDebInfo -j
 ```
 
@@ -127,12 +127,13 @@ If compilation fails inexplicably or takes longer than an hour, you might be run
 __tiny-cuda-nn__ comes with a [PyTorch](https://github.com/pytorch/pytorch) extension that allows using the fast MLPs and input encodings from within a [Python](https://www.python.org/) context.
 These bindings can be significantly faster than full Python implementations; in particular for the [multiresolution hash encoding](https://raw.githubusercontent.com/NVlabs/tiny-cuda-nn/master/data/readme/multiresolution-hash-encoding-diagram.png).
 
-> The overheads of Python/PyTorch can nonetheless be extensive.
-> For example, the bundled `mlp_learning_an_image` example is __~2x slower__ through PyTorch than native CUDA.
+> The overheads of Python/PyTorch can nonetheless be extensive if the batch size is small.
+> For example, with a batch size of 64k, the bundled `mlp_learning_an_image` example is __~2x slower__ through PyTorch than native CUDA.
+> With a batch size of 256k and higher (default), the performance is much closer.
 
 Begin by setting up a Python 3.X environment with a recent, CUDA-enabled version of PyTorch. Then, invoke
 ```sh
-pip install git+https://github.com/seungjooshin/tiny-cuda-nn/#subdirectory=bindings/torch
+pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 ```
 
 Alternatively, if you would like to install from a local clone of __tiny-cuda-nn__, invoke
